@@ -55,7 +55,7 @@ on input `|ψ⟩⟨ψ|`, the branch outputs `∑ i, |K i ψ⟩⟨K i ψ|`. Retai
 each component by the unnormalized vector `K i ψ`; forgetting it adds the output matrices.
 
 For two successive subinstruments with fixed output systems and finitely many intermediate
-outcomes, `Quantum.SubInstrument.branch_bind_eq_sum_conj_mul` gives path operators
+outcomes, `Quantum.DSubInstrument.branch_bind_eq_sum_conj_mul` gives path operators
 `L a b j * K a i`. The rightmost operator acts first. Different paths contribute matrices, not
 amplitudes, so their vectors are not added coherently. This is a two-stage identity; this file
 does not construct a whole-program Kraus refinement or prove its coarse-graining law.
@@ -519,20 +519,23 @@ theorem exists_kraus [Fintype A] {B : ι → Type*} [∀ i, Fintype (B i)]
     ∃ K : B i × A → Matrix (B i) A ℂ, Φ i = ∑ k, conj (K k) :=
   (h.isCP i).exists_kraus
 
-/-- A finite completely positive trace-nonincreasing family with a common codomain has Kraus
-operators for all members at once, with `1 - ∑ i, ∑ k, (K i k)ᴴ * K i k` positive semidefinite. -/
-theorem exists_kraus_of_fintype [Fintype A] [Fintype B] [DecidableEq A] [Fintype ι]
-    {Φ : ι → MatrixMap A B} (h : IsCPTNIFamily Φ) :
-    ∃ K : ι → B × A → Matrix B A ℂ, (∀ i, Φ i = ∑ k, conj (K i k)) ∧
+/-- A finite completely positive trace-nonincreasing family has joint Kraus operators,
+with `1 - ∑ i, ∑ k, (K i k)ᴴ * K i k` positive semidefinite, even for dependent outputs. -/
+theorem exists_kraus_of_fintype [Fintype A] {B : ι → Type*} [∀ i, Fintype (B i)]
+    [DecidableEq A] [Fintype ι] {Φ : (i : ι) → MatrixMap A (B i)} (h : IsCPTNIFamily Φ) :
+    ∃ K : (i : ι) → B i × A → Matrix (B i) A ℂ,
+      (∀ i, Φ i = ∑ k, conj (K i k)) ∧
       (1 - ∑ i, ∑ k, (K i k)ᴴ * K i k).PosSemidef := by
-  let K i := krausOps (Φ i) (h.isCP i)
-  have hK : ∀ i, Φ i = ∑ k, conj (K i k) := fun i ↦ (sum_conj_krausOps _ _).symm
+  classical
+  choose K hK using h.exists_kraus
   refine ⟨K, hK, ?_⟩
-  have htni := h.isTNI_sum Finset.univ
-  rw [Finset.sum_congr rfl fun i _ ↦ hK i,
-    ← Fintype.sum_prod_type' (f := fun i k ↦ conj (K i k))] at htni
-  rw [← Fintype.sum_prod_type' (f := fun i k ↦ (K i k)ᴴ * K i k)]
-  exact isTNI_sum_conj_iff.mp htni
+  refine (isHermitian_one.sub (Matrix.posSemidef_sum _ fun i _ ↦
+    posSemidef_sum_conjTranspose_mul_self (K i)).isHermitian
+    ).posSemidef_of_trace_mul_re_nonneg fun ρ hρ ↦ ?_
+  have ht := h.sum_trace_re_le Finset.univ ρ hρ
+  simp only [hK, trace_sum_conj_apply] at ht
+  rw [Matrix.sub_mul, Matrix.one_mul, Matrix.trace_sub, Complex.sub_re]
+  simpa only [Finset.sum_mul, Matrix.trace_sum, Complex.re_sum] using sub_nonneg.mpr ht
 
 end IsCPTNIFamily
 

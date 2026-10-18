@@ -493,23 +493,13 @@ theorem exists_kraus_branch (p : DSubInstrument A ι B) (i : ι) :
     ∃ K : B i × A → Matrix (B i) A ℂ, p.branch i = ∑ k, MatrixMap.conj (K k) :=
   p.isCPTNIFamily.exists_kraus i
 
-/-- Finitely many dependent branches admit joint Kraus operators, with the sum of their
+/-- Finitely many dependent branches have joint Kraus operators, with the sum of their
 squared operators bounded by the identity in the positive semidefinite order. -/
 theorem exists_kraus_of_fintype [Fintype ι] [DecidableEq A] (p : DSubInstrument A ι B) :
     ∃ K : (i : ι) → B i × A → Matrix (B i) A ℂ,
       (∀ i, p.branch i = ∑ k, MatrixMap.conj (K i k)) ∧
-      (1 - ∑ i, ∑ k, (K i k)ᴴ * K i k).PosSemidef := by
-  classical
-  choose K hK using p.exists_kraus_branch
-  refine ⟨K, hK, ?_⟩
-  refine (isHermitian_one.sub (Matrix.posSemidef_sum _ fun i _ ↦
-    MatrixMap.posSemidef_sum_conjTranspose_mul_self (K i)).isHermitian
-    ).posSemidef_of_trace_mul_re_nonneg fun ρ hρ ↦ ?_
-  have h := p.trace_le Finset.univ ρ hρ
-  simp only [Finset.mem_univ, Finset.sum_const_zero, Finset.sum_ite_irrel,
-    if_true, hK, MatrixMap.trace_sum_conj_apply] at h
-  rw [Matrix.sub_mul, Matrix.one_mul, Matrix.trace_sub, Complex.sub_re]
-  simpa only [Finset.sum_mul, Matrix.trace_sum, Complex.re_sum] using sub_nonneg.mpr h
+      (1 - ∑ i, ∑ k, (K i k)ᴴ * K i k).PosSemidef :=
+  p.isCPTNIFamily.exists_kraus_of_fintype
 
 /-- A lossless dependent subinstrument with finitely many outcomes has joint Kraus operators
 whose squared operators sum to the identity. -/
@@ -523,8 +513,8 @@ theorem Lossless.exists_kraus [Fintype ι] [DecidableEq A] {p : DSubInstrument A
   refine ⟨K, hK, ?_⟩
   have ht (ρ : Matrix A A ℂ) :
       ((∑ i, ∑ k, (K i k)ᴴ * K i k) * ρ).trace = ρ.trace := by
-    have h := hp ρ
-    simpa only [MatrixMap.familyTrace, tsum_fintype, hK, MatrixMap.trace_sum_conj_apply,
+    have h := hp.tsum_trace_eq ρ
+    simpa only [tsum_fintype, hK, MatrixMap.trace_sum_conj_apply,
       Finset.sum_mul, Matrix.trace_sum] using h
   ext a a'
   have h := ht (single a' a 1)
@@ -535,7 +525,7 @@ theorem Lossless.exists_kraus [Fintype ι] [DecidableEq A] {p : DSubInstrument A
   · simpa [Matrix.trace_single_eq_of_ne _ _ _ (Ne.symm ha), Matrix.one_apply_ne ha] using h
 
 /-- Kraus operators of dependent sequencing are path products, with the later operator on
- the left. Intermediate outcomes are finite; final outcomes need not be finite. Paths are
+the left. Intermediate outcomes are finite; final outcomes need not be finite. Paths are
 classical alternatives, so their output matrices add. -/
 theorem branch_bind_eq_sum_conj_mul [Fintype ι] {ν ξ : Type*} [Fintype ν] [Fintype ξ]
     (p : DSubInstrument A ι B) (k : (i : ι) → DSubInstrument (B i) κ C)

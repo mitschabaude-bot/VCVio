@@ -151,14 +151,14 @@ example [Fintype A] (S : Finset A) :
 
 /-- The computational-basis measurement as a subinstrument. -/
 noncomputable def measure [Fintype A] : SubInstrument A A A :=
-  SubInstrument.ofKraus (fun a ↦ Matrix.single a a (1 : ℂ)) sum_conjTranspose_single_mul_single
+  DSubInstrument.ofKraus (fun a ↦ Matrix.single a a (1 : ℂ)) sum_conjTranspose_single_mul_single
 
 /-- The computational-basis measurement has Kraus operators for all branches at once, with the
 completeness relation. -/
 example [Fintype A] : ∃ K : A → A × A → Matrix A A ℂ,
     (∀ a, (measure : SubInstrument A A A).branch a = ∑ k, MatrixMap.conj (K a k)) ∧
       ∑ a, ∑ k, (K a k)ᴴ * K a k = 1 :=
-  (SubInstrument.lossless_ofKraus _ _).exists_kraus
+  (DSubInstrument.lossless_ofKraus _ _).exists_kraus
 
 /-- Each branch of a measurement has Kraus operators. -/
 example [Fintype A] (a : A) :
@@ -172,9 +172,17 @@ example [Fintype A] (b : A) :
     ((measure : SubInstrument A A A).bind fun _ ↦ measure).branch b =
       ∑ x : A × Unit × Unit,
         MatrixMap.conj (Matrix.single b b (1 : ℂ) * Matrix.single x.1 x.1 1) :=
-  SubInstrument.branch_bind_eq_sum_conj_mul _ _ (K := fun a _ ↦ Matrix.single a a 1)
+  DSubInstrument.branch_bind_eq_sum_conj_mul _ _ (K := fun a _ ↦ Matrix.single a a 1)
     (L := fun _ b _ ↦ Matrix.single b b 1) (fun _ ↦ by simp [measure])
     (fun _ _ ↦ by simp [measure]) b
+
+/-- The joint completeness theorem elaborates with genuinely different output dimensions:
+outcome zero has a one-dimensional output and outcome one has a two-dimensional output. -/
+example (p : DSubInstrument (Fin 2) (Fin 2) (fun i ↦ Fin (i.val + 1))) (hp : p.Lossless) :
+    ∃ K : (i : Fin 2) → Fin (i.val + 1) × Fin 2 → Matrix (Fin (i.val + 1)) (Fin 2) ℂ,
+      (∀ i, p.branch i = ∑ k, MatrixMap.conj (K i k)) ∧
+      ∑ i, ∑ k, (K i k)ᴴ * K i k = 1 :=
+  hp.exists_kraus
 
 /-! ## Phase and tensor-order calculations -/
 
@@ -230,7 +238,7 @@ theorem conjTranspose_bitFlip_mul : bitFlipᴴ * bitFlip = 1 := by
 
 /-- The single-outcome bit-flip instrument. -/
 noncomputable def bitFlipInstrument : SubInstrument (Fin 2) (Fin 2) Unit :=
-  SubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
+  DSubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
 
 /-- Postselection on the zero outcome of a computational-basis measurement. -/
 noncomputable def postselectZero : SubInstrument (Fin 2) (Fin 2) Unit :=
@@ -243,7 +251,7 @@ noncomputable def postselectZero : SubInstrument (Fin 2) (Fin 2) Unit :=
 theorem postselect_flip_path :
     (postselectZero.bind fun _ ↦ bitFlipInstrument).branch () =
       MatrixMap.conj (bitFlip * Matrix.single 0 0 1) := by
-  have h := SubInstrument.branch_bind_eq_sum_conj_mul postselectZero (fun _ ↦ bitFlipInstrument)
+  have h := DSubInstrument.branch_bind_eq_sum_conj_mul postselectZero (fun _ ↦ bitFlipInstrument)
     (K := fun _ _ : Unit ↦ Matrix.single 0 0 (1 : ℂ))
     (L := fun _ _ _ : Unit ↦ bitFlip)
     (fun _ ↦ by simp [postselectZero]) (fun _ _ ↦ by simp [bitFlipInstrument]) ()

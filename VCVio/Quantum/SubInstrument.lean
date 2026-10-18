@@ -73,7 +73,8 @@ Every branch has a finite Kraus representation (`Quantum.DSubInstrument.exists_k
 even when the outcome type is infinite. For finitely many outcomes,
 `Quantum.DSubInstrument.exists_kraus_of_fintype` gives a joint completeness inequality, and
 `Quantum.DSubInstrument.Lossless.exists_kraus` gives equality, with operators indexed by
-`B × A` on each outcome in the constant-codomain case. For two stages with finitely many intermediate outcomes,
+`B × A` on each outcome in the constant-codomain case. For two stages with finitely many
+intermediate outcomes,
 `Quantum.DSubInstrument.branch_bind_eq_sum_conj_mul` expresses each final branch as a sum of
 Kraus maps along paths, with the later operator multiplying on the left.
 
