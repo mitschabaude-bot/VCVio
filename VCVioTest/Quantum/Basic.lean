@@ -21,8 +21,9 @@ post-state gives exactly `½ δ₀`, preserving its missing mass.
 A measurement whose output register depends on the outcome, keeping the qubit on outcome `0` and
 discarding it to `Unit` on outcome `1`, is a lossless dependent subinstrument with the uniform
 outcome measure on `|+⟩⟨+|`. Sequencing it with a continuation whose input register depends on the
-first outcome is lossless, and the computational-basis measurement transported along the
-constant-codomain equivalence keeps its losslessness and its outcome measure.
+first outcome is lossless. The computational-basis measurement is definitionally a dependent
+subinstrument with constant output system, so the same losslessness and outcome-measure API
+applies directly.
 
 Outcomes need not be finitely many: the instrument on a qubit that reports `n : ℕ` with weight
 `2^{-(n+1)}` scales its post-state by that weight, preserving the normalized conditional state.
@@ -43,6 +44,67 @@ open Quantum Matrix MeasureTheory
 open scoped ComplexOrder
 
 namespace VCVioTest.QuantumBasic
+
+/-! ## Constant-output API through ordinary imports -/
+
+noncomputable section constantOutput
+
+variable {A B C R α β : Type*} [Fintype A] [Fintype B] [Fintype C] [Fintype R]
+
+/-- Relabelling infers its output system from the input subinstrument. -/
+example (p : SubInstrument A B α) (f : α → β) := p.map f
+
+/-- The facade exposes the cast-free fibre sum to rewriting. -/
+example (p : SubInstrument A B α) (f : α → β) (b : β) (ρ : Matrix A A ℂ) :
+    (p.map f).branch b ρ = ∑' a : f ⁻¹' {b}, p.branch a ρ := by
+  rw [SubInstrument.branch_map_apply]
+
+/-- Observing a relabelled computation infers its output system. -/
+example [MeasurableSpace β] (p : SubInstrument A B α) (f : α → β) (ρ : SubState A) :=
+  (p.map f).outcomeMeasure ρ
+
+/-- Losslessness supports relabelling without a family annotation. -/
+example (p : SubInstrument A B α) (hp : p.Lossless) (f : α → β) :
+    (p.map f).Lossless := hp.map f
+
+/-- The dependent right unit law rewrites the exposed constant return. -/
+example (p : SubInstrument A B α) : p.bind SubInstrument.pure = p := by
+  rw [DSubInstrument.bind_ret]
+
+/-- The dependent losslessness theorem applies directly to constant return. -/
+example (a : α) : (SubInstrument.pure a : SubInstrument A A α).Lossless :=
+  DSubInstrument.lossless_ret _ a
+
+/-- The dependent left unit law rewrites constant return. -/
+example (a : α) (k : α → SubInstrument A B β) : (SubInstrument.pure a).bind k = k a := by
+  rw [DSubInstrument.ret_bind]
+
+/-- The returned outcome leaves the input substate unchanged. -/
+example (a : α) (ρ : SubState A) : (SubInstrument.pure a).post ρ a = ρ := by
+  simp only [DSubInstrument.post_ret_self]
+
+/-- Return has the dependent point-mass outcome measure. -/
+example [MeasurableSpace α] (a : α) (ρ : SubState A) :
+    (SubInstrument.pure a).outcomeMeasure ρ =
+      ENNReal.ofReal ρ.matrix.trace.re • Measure.dirac a := by
+  simp only [DSubInstrument.outcomeMeasure_ret]
+
+/-- Framing constant return agrees with return on the extended register. -/
+example (a : α) : (SubInstrument.pure a : SubInstrument A A α).frame R =
+    (SubInstrument.pure a : SubInstrument (A × R) (A × R) α) := by
+  rw [DSubInstrument.frame_ret]
+
+/-- The dependent total-map law simplifies the constant mapping facade. -/
+example (p : SubInstrument A B α) (f : α → β) : (p.map f).total = p.total := by
+  simp only [DSubInstrument.total_map]
+
+/-- A composite with a constant output system has a total map by field notation. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β) := (p.bind k).total
+
+/-- A framed constant-output computation has a total map by field notation. -/
+example (p : SubInstrument A B α) := (p.frame R).total
+
+end constantOutput
 
 /-- The projector onto the computational-basis state `i` of a qubit. -/
 def proj (i : Fin 2) : Matrix (Fin 2) (Fin 2) ℂ :=
@@ -328,7 +390,7 @@ example : SubInstrument.ofIsTNISum measureZ.branch measureZ.isCP_branch measureZ
 
 /-- Losslessness of the measurement also gives trace preservation of its total map. -/
 example : measureZ.total.IsTP :=
-  (SubInstrument.lossless_iff_isTP_total measureZ).mp lossless_measureZ
+  (DSubInstrument.lossless_iff_isTP_total measureZ).mp lossless_measureZ
 
 /-- Do notation on a fixed register sequences quantum computations with the usual unit law. -/
 example : (do
@@ -438,7 +500,7 @@ noncomputable def geometricReal : SubInstrument (Fin 2) (Fin 2) ℝ :=
 
 /-- Relabelling keeps the geometric instrument lossless on the reals. -/
 example : geometricReal.Lossless :=
-  lossless_geometric.map (C := fun _ ↦ Fin 2)
+  lossless_geometric.map (fun n : ℕ ↦ (n : ℝ))
 
 /-- Only countably many real outcomes carry a nonzero branch. -/
 example : (Function.support geometricReal.branch).Countable :=
@@ -460,7 +522,7 @@ example : {x : ℝ | geometricReal.branch x ≠ 0}.Countable :=
 
 /-- Relabelling the geometric instrument to a single outcome sums the infinite fibre `ℕ`: the
 branch at that outcome is the identity map. -/
-example : (geometric.map (C := fun _ ↦ Fin 2) fun _ : ℕ ↦ ()).branch () = LinearMap.id := by
+example : (geometric.map fun _ : ℕ ↦ ()).branch () = LinearMap.id := by
   refine LinearMap.ext fun ρ ↦ ?_
   have h : (fun _ : ℕ ↦ ()) ⁻¹' {()} = Set.univ := Set.eq_univ_of_forall fun _ ↦ rfl
   have hs : HasSum (fun n ↦ (geomWeight n : ℂ) • ρ) (((1 : ℝ) : ℂ) • ρ) :=
@@ -475,12 +537,12 @@ noncomputable def geometricULift : SubInstrument (Fin 2) (Fin 2) (ULift.{1} ℕ)
 
 /-- Relabelling into a higher universe keeps the instrument lossless. -/
 example : geometricULift.Lossless :=
-  lossless_geometric.map (C := fun _ ↦ Fin 2)
+  lossless_geometric.map ULift.up
 
 /-- The dependent geometric instrument with outcomes in `Type 1`, restricted back to `ℕ` along
 the bijection `ULift.up`, is lossless. -/
 example : (geometricULift.comap ULift.up ULift.up_injective).Lossless :=
-  (lossless_geometric.map (C := fun _ ↦ Fin 2)).comap ULift.up_bijective
+  (lossless_geometric.map ULift.up).comap ULift.up_bijective
 
 /-- The dependent geometric instrument with outcomes in `Type 1` has countably many nonzero
 branches. -/

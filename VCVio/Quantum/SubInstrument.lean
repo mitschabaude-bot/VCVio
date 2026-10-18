@@ -46,7 +46,7 @@ cannot be summarized by the probabilities of its outcomes.
 The branches form an arbitrary function on `α`, not a finitely supported one. Trace nonincrease
 of the finite partial sums makes the family summable on every input
 (`Quantum.MatrixMap.IsCPTNIFamily.summable_apply`), only countably many branches are nonzero
-(`Quantum.DSubInstrument.countable_support_branch`), and the sum `Quantum.SubInstrument.total` is
+(`Quantum.DSubInstrument.countable_support_branch`), and the sum `Quantum.DSubInstrument.total` is
 completely positive and trace nonincreasing. No countability assumption is made on `α`.
 
 Infinitely many outcomes are what loops produce. At each round, prepare a fresh `|+⟩`, measure it in
@@ -55,13 +55,13 @@ the computational basis, and stop on `0`, returning the number of rounds: the lo
 this library. Their semantics would be the limit of their finite unrollings, and a limit of finitely
 supported instruments need not be finitely supported, which is why the model does not require finite
 support. A family that vanishes outside a finite set `s` has total map the finite sum over `s`
-(`Quantum.SubInstrument.total_eq_sum`), and `pure`, `ofMap` and `ofKraus` over a finite type produce
-such families.
+(`Quantum.DSubInstrument.total_eq_sum`), and `pure`, `ofMap` and `ofKraus` over a finite type
+produce such families.
 
 ## Main definitions
 
 * `Quantum.SubInstrument A B α`, with `pure`, `bind`, `map`, `fail` and `frame`.
-* `Quantum.SubInstrument.total`: the sum of the branches, which is the action when the outcome
+* `Quantum.DSubInstrument.total`: the sum of the branches, which is the action when the outcome
   is discarded.
 * `Quantum.DSubInstrument.Lossless`: the total map is trace preserving.
 * `Quantum.SubInstrument.ofMap`: the one-outcome subinstrument of a completely positive
@@ -82,8 +82,12 @@ Kraus maps along paths, with the later operator multiplying on the left.
 
 `SubInstrument A B α` is an abbreviation for `DSubInstrument A α (fun _ ↦ B)`.
 The dependent API applies directly, including dot notation and rewriting. The dependent type
-is an indexed monad: `ret B i` has input system `B i`. The constant-only layer provides `total`,
-`ofMap`, and the `Monad` instance on a fixed register.
+is an indexed monad: `ret B i` has input system `B i`. The exposed reducible `SubInstrument.pure`
+and `SubInstrument.map` facades specialize return and relabelling to a fixed output system;
+`SubInstrument.Lossless.map` supports `hp.map f` without output-family annotations.
+Constant-output operations on subinstruments, including `total`, live in `DSubInstrument` so
+field notation also applies to composites such as `(p.bind k).total` and `(p.frame R).total`.
+Constructors and the fixed-register `Monad` instance live in `SubInstrument`.
 
 ## References
 
@@ -106,16 +110,20 @@ namespace Quantum
 abbrev SubInstrument (A B : Type*) [Fintype A] [Fintype B] (α : Type*) :=
   DSubInstrument A α fun _ ↦ B
 
+variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
+
+namespace DSubInstrument
+
+/-- Every finite sum of branches is trace nonincreasing. -/
+theorem isTNI_sum (p : DSubInstrument A α (fun _ ↦ B)) (s : Finset α) :
+    (∑ a ∈ s, p.branch a).IsTNI :=
+  p.isCPTNIFamily.isTNI_sum s
+
+end DSubInstrument
+
 namespace SubInstrument
 
 export DSubInstrument (fail ofKraus)
-
-variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
-
-/-- Every finite sum of branches is trace nonincreasing. -/
-theorem isTNI_sum (p : SubInstrument A B α) (s : Finset α) :
-    (∑ a ∈ s, p.branch a).IsTNI :=
-  p.isCPTNIFamily.isTNI_sum s
 
 /-- Construct a subinstrument from completely positive branches with trace-nonincreasing sums. -/
 @[expose]
@@ -126,69 +134,94 @@ def ofIsTNISum (branch : α → MatrixMap A B) (hcp : ∀ a, (branch a).IsCP)
   trace_le := (MatrixMap.IsCPTNIFamily.of_isTNI_sum hcp htni).sum_trace_re_le
 
 /-- The subinstrument that leaves the state unchanged and returns `a`. -/
-@[reducible]
+@[expose, reducible]
 protected noncomputable def pure (a : α) : SubInstrument A A α :=
   DSubInstrument.ret (fun _ ↦ A) a
 
+/-- Relabel outcomes while keeping the output system fixed. -/
+@[expose, reducible]
+protected noncomputable def map (f : α → β) (p : SubInstrument A B α) : SubInstrument A B β :=
+  DSubInstrument.map (C := fun _ ↦ B) f p
+
+/-- Losslessness of a constant-output subinstrument, expressed by its dependent trace law. -/
+abbrev Lossless (p : SubInstrument A B α) : Prop := DSubInstrument.Lossless p
+
+/-- Relabelling outcomes preserves losslessness for a fixed output system. -/
+theorem Lossless.map {p : SubInstrument A B α} (hp : p.Lossless) (f : α → β) :
+    (p.map f).Lossless :=
+  DSubInstrument.Lossless.map (C := fun _ ↦ B) hp
+
+end SubInstrument
+
+namespace DSubInstrument
+
 /-- The branches of a subinstrument are summable on every input. -/
-theorem summable_branch_apply (p : SubInstrument A B α) (ρ : Matrix A A ℂ) :
+theorem summable_branch_apply (p : DSubInstrument A α (fun _ ↦ B)) (ρ : Matrix A A ℂ) :
     Summable fun a ↦ p.branch a ρ :=
   p.isCPTNIFamily.summable_apply ρ
 
 /-- The sum of the branches of a subinstrument: its action on the state when the classical
 outcome is discarded. -/
 @[expose]
-noncomputable def total (p : SubInstrument A B α) : MatrixMap A B :=
+noncomputable def total (p : DSubInstrument A α (fun _ ↦ B)) : MatrixMap A B :=
   MatrixMap.familySum p.branch
 
 /-- The total map is the pointwise sum of the branches. -/
-theorem total_apply (p : SubInstrument A B α) (ρ : Matrix A A ℂ) :
+theorem total_apply (p : DSubInstrument A α (fun _ ↦ B)) (ρ : Matrix A A ℂ) :
     p.total ρ = ∑' a, p.branch a ρ :=
   p.isCPTNIFamily.familySum_apply ρ
 
 /-- The total map as a finite sum over any finite set of outcomes outside which the branches
 vanish. -/
-theorem total_eq_sum (p : SubInstrument A B α) {s : Finset α} (hs : ∀ a ∉ s, p.branch a = 0) :
+theorem total_eq_sum (p : DSubInstrument A α (fun _ ↦ B)) {s : Finset α}
+    (hs : ∀ a ∉ s, p.branch a = 0) :
     p.total = ∑ a ∈ s, p.branch a :=
   MatrixMap.familySum_eq_sum_of_forall_notMem hs
 
 /-- The total map as a sum over a finite type of outcomes. -/
-theorem total_eq_sum_univ [Fintype α] (p : SubInstrument A B α) : p.total = ∑ a, p.branch a :=
+theorem total_eq_sum_univ [Fintype α] (p : DSubInstrument A α (fun _ ↦ B)) :
+    p.total = ∑ a, p.branch a :=
   MatrixMap.familySum_eq_sum_univ p.branch
 
 /-- The trace of the total map is the sum of the traces of the branches. -/
-theorem trace_total_apply (p : SubInstrument A B α) (ρ : Matrix A A ℂ) :
+theorem trace_total_apply (p : DSubInstrument A α (fun _ ↦ B)) (ρ : Matrix A A ℂ) :
     (p.total ρ).trace = ∑' a, (p.branch a ρ).trace :=
   MatrixMap.trace_familySum_apply p.summable_branch_apply ρ
 
 /-- The real part of the trace of the total map is the sum of the real parts of the traces of
 the branches. -/
-theorem trace_re_total_apply (p : SubInstrument A B α) (ρ : Matrix A A ℂ) :
+theorem trace_re_total_apply (p : DSubInstrument A α (fun _ ↦ B)) (ρ : Matrix A A ℂ) :
     (p.total ρ).trace.re = ∑' a, (p.branch a ρ).trace.re := by
   rw [trace_total_apply, p.isCPTNIFamily.re_tsum_trace_apply]
 
 /-- The total map of a subinstrument is trace nonincreasing on positive semidefinite inputs. -/
-theorem isTNI_total (p : SubInstrument A B α) : p.total.IsTNI :=
+theorem isTNI_total (p : DSubInstrument A α (fun _ ↦ B)) : p.total.IsTNI :=
   p.isCPTNIFamily.isTNI_familySum
 
 /-- The total map of a subinstrument is completely positive. -/
-theorem isCP_total (p : SubInstrument A B α) : p.total.IsCP :=
+theorem isCP_total (p : DSubInstrument A α (fun _ ↦ B)) : p.total.IsCP :=
   MatrixMap.isCP_familySum p.isCP_branch
 
 /-- For a fixed output system, losslessness is trace preservation of the total map. -/
-theorem lossless_iff_isTP_total (p : SubInstrument A B α) : p.Lossless ↔ p.total.IsTP :=
+theorem lossless_iff_isTP_total (p : DSubInstrument A α (fun _ ↦ B)) : p.Lossless ↔ p.total.IsTP :=
   (MatrixMap.isTP_familySum_iff p.summable_branch_apply).symm
 
 /-- The branch trace functional is the trace after the total map. -/
-theorem familyTrace_branch (p : SubInstrument A B α) :
+theorem familyTrace_branch (p : DSubInstrument A α (fun _ ↦ B)) :
     MatrixMap.familyTrace p.branch = Matrix.traceLinearMap B ℂ ℂ ∘ₗ p.total :=
   MatrixMap.familyTrace_eq_trace_familySum p.summable_branch_apply
 
 /-- On a positive semidefinite input, each branch has trace at most that of the total map. -/
-theorem trace_re_branch_apply_le_total (p : SubInstrument A B α) (a : α) {ρ : Matrix A A ℂ}
-    (hρ : ρ.PosSemidef) : (p.branch a ρ).trace.re ≤ (p.total ρ).trace.re := by
+theorem trace_re_branch_apply_le_total (p : DSubInstrument A α (fun _ ↦ B)) (a : α)
+    {ρ : Matrix A A ℂ} (hρ : ρ.PosSemidef) : (p.branch a ρ).trace.re ≤ (p.total ρ).trace.re := by
   simpa only [familyTrace_branch, LinearMap.comp_apply, Matrix.traceLinearMap_apply] using
     p.trace_re_branch_apply_le_familyTrace a hρ
+
+end DSubInstrument
+
+namespace SubInstrument
+
+export DSubInstrument (familyTrace_branch)
 
 /-- The branch of `pure a` at `a` is the identity map. -/
 @[simp]
@@ -215,24 +248,29 @@ theorem branch_pure [DecidableEq α] (a : α) :
 /-- Relabelling with a fixed output system sums the branches in each fibre. -/
 theorem branch_map_apply (f : α → β) (p : SubInstrument A B α) (b : β)
     (ρ : Matrix A A ℂ) :
-    (p.map (C := fun _ ↦ B) f).branch b ρ = ∑' a : f ⁻¹' {b}, p.branch a ρ := by
+    (p.map f).branch b ρ = ∑' a : f ⁻¹' {b}, p.branch a ρ := by
   simpa only [cast_eq] using DSubInstrument.branch_map_apply (C := fun _ ↦ B) f p b ρ
+
+end SubInstrument
+
+namespace DSubInstrument
 
 /-- The total map of `pure a` is the identity map. -/
 @[simp]
 theorem total_pure (a : α) : (SubInstrument.pure a : SubInstrument A A α).total = LinearMap.id := by
-  rw [total_eq_sum _ (s := {a}) fun a' ha' ↦ branch_pure_of_ne (Finset.notMem_singleton.mp ha'),
-    Finset.sum_singleton, branch_pure_self]
+  rw [total_eq_sum _ (s := {a}) fun a' ha' ↦
+    SubInstrument.branch_pure_of_ne (Finset.notMem_singleton.mp ha'),
+    Finset.sum_singleton, SubInstrument.branch_pure_self]
 
 /-- The total map of a composite sums, over the outcomes of the first subinstrument, the total
 map of the continuation after the corresponding branch. -/
-theorem total_bind (p : SubInstrument A B α) (k : α → SubInstrument B C β) :
-    total (p.bind k) = MatrixMap.familySum fun a ↦ (k a).total ∘ₗ p.branch a :=
+theorem total_bind (p : DSubInstrument A α (fun _ ↦ B)) (k : α → DSubInstrument B β (fun _ ↦ C)) :
+    (p.bind k).total = MatrixMap.familySum fun a ↦ (k a).total ∘ₗ p.branch a :=
   MatrixMap.familySum_familyBind p.isCPTNIFamily fun a ↦ (k a).isCPTNIFamily
 
 /-- Relabelling outcomes does not change the total map. -/
 @[simp]
-theorem total_map (f : α → β) (p : SubInstrument A B α) :
+theorem total_map (f : α → β) (p : DSubInstrument A α (fun _ ↦ B)) :
     total (p.map (C := fun _ ↦ B) f) = p.total := by
   rw [DSubInstrument.map_eq_bind_ret, total_bind]
   change MatrixMap.familySum (fun a ↦
@@ -242,8 +280,12 @@ theorem total_map (f : α → β) (p : SubInstrument A B α) :
 
 /-- The total map of the failing subinstrument is zero. -/
 @[simp]
-theorem total_fail : total (DSubInstrument.fail : SubInstrument A B α) = 0 :=
+theorem total_fail : total (DSubInstrument.fail : DSubInstrument A α (fun _ ↦ B)) = 0 :=
   MatrixMap.familySum_zero
+
+end DSubInstrument
+
+namespace SubInstrument
 
 /-- A completely positive, trace-nonincreasing map as a subinstrument with one outcome. -/
 @[expose]
@@ -263,17 +305,30 @@ theorem branch_ofMap (Φ : MatrixMap A B) (hcp : Φ.IsCP) (htni : Φ.IsTNI) :
     (ofMap Φ hcp htni).branch = fun _ ↦ Φ :=
   rfl
 
+end SubInstrument
+
+namespace DSubInstrument
+
 /-- The total map of `ofMap Φ` is `Φ`. -/
 @[simp]
 theorem total_ofMap (Φ : MatrixMap A B) (hcp : Φ.IsCP) (htni : Φ.IsTNI) :
-    (ofMap Φ hcp htni).total = Φ := by
+    (SubInstrument.ofMap Φ hcp htni).total = Φ := by
   rw [total_eq_sum_univ, Fintype.sum_unique]
   rfl
+
+end DSubInstrument
+
+namespace SubInstrument
 
 /-- The subinstrument of a completely positive, trace-preserving map is lossless. -/
 theorem lossless_ofMap {Φ : MatrixMap A B} (hcp : Φ.IsCP) (htp : Φ.IsTP) :
     (ofMap Φ hcp htp.isTNI).Lossless := by
-  rwa [lossless_iff_isTP_total, total_ofMap]
+  exact (DSubInstrument.lossless_iff_isTP_total _).mpr (by
+    simpa only [DSubInstrument.total_ofMap] using htp)
+
+end SubInstrument
+
+namespace DSubInstrument
 
 /-- The total map of a Kraus measurement sums the Kraus maps of its operators. -/
 theorem total_ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ)
@@ -287,12 +342,13 @@ variable (R : Type*) [Fintype R]
 
 /-- The total map of a framed subinstrument is the amplified total map. -/
 @[simp]
-theorem total_frame (p : SubInstrument A B α) : total (p.frame R) = p.total.amplify R :=
+theorem total_frame (p : DSubInstrument A α (fun _ ↦ B)) :
+    (p.frame R).total = p.total.amplify R :=
   (MatrixMap.amplify_familySum p.branch R).symm
 
 end frame
 
-end SubInstrument
+end DSubInstrument
 
 /-! ## The monad of subinstruments on a fixed register -/
 
@@ -306,7 +362,7 @@ as functorial action. This monad is the semantic domain of quantum programs on `
 noncomputable instance : Monad (SubInstrument M M) where
   pure := SubInstrument.pure
   bind := DSubInstrument.bind
-  map := DSubInstrument.map (C := fun _ ↦ M)
+  map := SubInstrument.map
 
 /-- Monadic `pure` on `SubInstrument M M` is `Quantum.SubInstrument.pure`. -/
 @[simp]
