@@ -287,6 +287,18 @@ theorem isCP_sum_conj [Fintype A] [Finite B] [Fintype ι] (K : ι → Matrix B A
     IsCP (∑ i, conj (K i)) :=
   IsCP.sum _ fun i _ ↦ isCP_conj (K i)
 
+/-- A matrix map is completely positive iff its Choi matrix is positive semidefinite. -/
+theorem isCP_iff_posSemidef_choi [Finite A] [Finite B] [DecidableEq A]
+    {Φ : MatrixMap A B} : Φ.IsCP ↔ (choi Φ).PosSemidef := by
+  refine ⟨IsCP.posSemidef_choi, fun h ↦ ?_⟩
+  classical
+  cases nonempty_fintype A
+  cases nonempty_fintype B
+  open scoped MatrixOrder in
+  obtain ⟨Y, hY⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp h.nonneg
+  rw [eq_sum_conj_krausOfFactor (Φ := Φ) (Y := Y) (by rw [hY, star_eq_conjTranspose])]
+  exact isCP_sum_conj _
+
 /-- **Choi's theorem**: a matrix map is completely positive iff it is a finite sum of Kraus maps.
 The index type of the Kraus operators may live in any universe. -/
 theorem isCP_iff_exists_kraus [Fintype A] [Finite B] {Φ : MatrixMap A B} :
