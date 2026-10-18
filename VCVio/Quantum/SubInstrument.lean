@@ -19,21 +19,24 @@ probability of failure. A subinstrument whose branches sum to a trace-preserving
 *lossless*, and is an instrument in the usual sense.
 
 `Quantum.SubInstrument A B α` has input system `A`, output system `B` and outcomes in `α`.
-It is the countably supported, possibly lossy form of the finite instruments of Watrous,
-*The Theory of Quantum Information*, equations (2.258)–(2.261), p. 112.
+It is a countably supported, possibly lossy extension of the finite instruments of Watrous
+(see the module references).
 
 ## How computations compose
 
 On a fixed register `M`, `SubInstrument M M` is a lawful monad, and the operations mean what they
-mean for `OracleComp`, with completely positive maps in place of probabilities:
+mean for `OracleComp`, with completely positive maps in place of probabilities. `OracleComp`
+is free-monad syntax interpreted by `simulateQ`; subinstruments are semantic state
+transformations, observed as measures by `outcomeMeasure` in `VCVio.Quantum.Observe`:
 
 * `pure a` reports `a` and leaves the state unchanged.
 * `p.bind k` runs `p`, and on outcome `a` runs `k a` on the state `p` left behind:
   `(p.bind k).branch b ρ = ∑' a, (k a).branch b (p.branch a ρ)`.
 * `map f p` relabels outcomes. Outcomes with the same image are merged by adding their branches.
-  This forgets classical information; it is not quantum interference.
+  This coarse-graining forgets classical information; it is not quantum interference.
 * `fail` reports nothing: every branch is zero.
-* `p.frame R` runs `p` beside an untouched reference system `R`, as `branch a ⊗ id_R`.
+* `p.frame R` extends each branch by the identity on a right reference `R`, as `branch a ⊗ id_R`.
+  Entanglement can change the outcome-conditioned reference state.
 
 `bind` passes the residual quantum state to the continuation. This is why a quantum computation
 cannot be summarized by the probabilities of its outcomes.
@@ -73,6 +76,13 @@ Here every branch has the same output system `B`. `Quantum.DSubInstrument A ι B
 Subinstruments are exactly its constant case: `Quantum.SubInstrument.equivD` is an equivalence
 `SubInstrument A B α ≃ DSubInstrument A α (fun _ ↦ B)` that commutes with `pure`, `bind`, `map`,
 `fail` and `frame`.
+
+## References
+
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018.
+  Finite instruments and conditional states: equations (2.258)–(2.261), printed p. 112,
+  [full PDF p. 120](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=120).
+  PDF pages are 1-based. Countable support and possible trace loss extend that finite definition.
 -/
 
 public section
@@ -92,8 +102,8 @@ Run on a state `ρ`, it reports `a` with probability `tr (branch a ρ)` and leav
 state `branch a ρ`. The trace lost by all branches together is the probability of failure.
 The finite-sum condition makes the family summable on every input, with countably many nonzero
 branches, although `α` is arbitrary. `Lossless` says no trace is lost; a lossless subinstrument
-with finitely many outcomes is an instrument in the sense of Watrous, *The Theory of Quantum
-Information*, equations (2.258)–(2.261), p. 112. -/
+with finitely many outcomes is an instrument in the sense of Watrous, equations (2.258)–(2.261),
+printed p. 112, full PDF p. 120 (see the module references). -/
 @[ext]
 structure SubInstrument (A B : Type*) [Fintype A] [Fintype B] (α : Type*) where
   /-- The map applied to the state on outcome `a`. -/
@@ -235,8 +245,8 @@ protected noncomputable def bind (p : SubInstrument A B α) (k : α → SubInstr
     isCP_branch := h.isCP
     isTNI_sum := h.isTNI_sum }
 
-/-- Relabel the outcomes of a subinstrument along `f`, summing the branches of outcomes with
-the same image. -/
+/-- Coarse-grain the outcomes of a subinstrument along `f`, summing the branches of outcomes
+with the same image. -/
 @[expose]
 protected noncomputable def map (f : α → β) (p : SubInstrument A B α) : SubInstrument A B β :=
   p.bind fun a ↦ SubInstrument.pure (f a)
@@ -414,7 +424,7 @@ theorem lossless_ofMap {Φ : MatrixMap A B} (hcp : Φ.IsCP) (htp : Φ.IsTP) :
     (ofMap Φ hcp htp.isTNI).Lossless := by
   rwa [Lossless, total_ofMap]
 
-/-- The measurement with Kraus operators `K a`, one per outcome, subject to the completeness
+/-- The finite measurement with Kraus operators `K a`, one per outcome, subject to the completeness
 relation `∑ a, (K a)ᴴ * K a = 1`. The branch at `a` is `ρ ↦ K a * ρ * (K a)ᴴ`. -/
 @[expose]
 noncomputable def ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ)
@@ -446,8 +456,10 @@ theorem lossless_ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ
 
 /-! ## Framing by an ancilla -/
 
-/-- The action of a subinstrument on a system extended by an ancilla with basis `R` that it
-leaves untouched: every branch is amplified by `R`. -/
+/-- Extend each branch by the identity on a right-hand reference system `R`:
+`(p.frame R).branch a = p.branch a ⊗ id_R`, on input `A × R` and output `B × R`.
+No operation acts directly on `R`, but entanglement can change its state when an outcome is
+selected. The input may be entangled across the two factors. -/
 @[expose]
 noncomputable def frame (p : SubInstrument A B α) (R : Type*) [Fintype R] :
     SubInstrument (A × R) (B × R) α where

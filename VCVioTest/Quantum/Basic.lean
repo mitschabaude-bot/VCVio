@@ -13,7 +13,10 @@ public import VCVio.Quantum.Semantics
 The computational-basis measurement of one qubit, built from its two diagonal projectors, is
 lossless, also when framed by an ancilla; measuring twice never reports two different outcomes;
 and on the state `|+⟩⟨+|` each outcome has weight `1 / 2`, for total mass one under the bundled
-semantics.
+semantics. Complex phase gates distinguish adjoints from transposes, and the two orders of
+noncommuting gates distinguish sequencing order. Computational-basis measurement of the first
+qubit of Bell and flipped-Bell states checks system/reference order. Remeasuring a subnormalized
+post-state gives exactly `½ δ₀`, preserving its missing mass.
 
 A measurement whose output register depends on the outcome, keeping the qubit on outcome `0` and
 discarding it to `Unit` on outcome `1`, is a lossless dependent subinstrument with the uniform
@@ -22,8 +25,9 @@ first outcome is lossless, and the computational-basis measurement transported a
 constant-codomain equivalence keeps its losslessness and its outcome measure.
 
 Outcomes need not be finitely many: the instrument on a qubit that reports `n : ℕ` with weight
-`2^{-(n+1)}` and leaves the state unchanged, built directly as a summable family, is lossless,
-and on `|+⟩⟨+|` it gives the outcome `n` mass `2^{-(n+1)}`.
+`2^{-(n+1)}` scales its post-state by that weight, preserving the normalized conditional state.
+Built directly as a summable family, it is lossless, and on `|+⟩⟨+|` it gives outcome `n` mass
+`2^{-(n+1)}`. For subnormalized inputs the outcome weight also includes the input trace.
 
 Relabelling it into the reals gives an instrument with an uncountable outcome type and countably
 many nonzero branches; relabelling it to a single outcome sums an infinite fibre, giving the
@@ -194,7 +198,8 @@ theorem frame_measureZ_bell (a : Fin 2) :
   fin_cases a <;> fin_cases i <;> fin_cases r <;> fin_cases j <;> fin_cases s <;>
     simp [measureZ, proj, bell, MatrixMap.amplify_apply]
 
-/-- Each branch of the framed Bell measurement has probability `½`. -/
+/-- Measuring the first qubit of the Bell state in the computational basis gives each outcome
+probability `½`. -/
 example (a : Fin 2) :
     (measureZ.frame (Fin 2)).outcomeMeasure bell {a} = ENNReal.ofReal (1 / 2) := by
   rw [SubInstrument.outcomeMeasure_apply_singleton, frame_measureZ_bell]
@@ -344,8 +349,11 @@ theorem isCP_ofReal_smul_id {r : ℝ} (hr : 0 ≤ r) :
   rw [h]
   exact hρ.smul (Complex.zero_le_real.mpr hr)
 
-/-- The instrument on a qubit that reports the outcome `n : ℕ` with weight `2^{-(n+1)}` and leaves
-the state unchanged. Every outcome has positive weight, so it is not finitely supported. -/
+/-- The instrument with branches `Φ_n(ρ) = 2^{-(n+1)} • ρ`. On a normalized input, outcome
+`n : ℕ` has probability `2^{-(n+1)}` and its normalized conditional state equals the input.
+The stored post-state is scaled by that probability. Every branch map is nonzero, so the
+instrument is not finitely supported. For subnormalized inputs the outcome weight also includes
+the input trace. -/
 @[expose]
 noncomputable def geometric : SubInstrument (Fin 2) (Fin 2) ℕ where
   branch n := (geomWeight n : ℂ) • LinearMap.id

@@ -18,13 +18,14 @@ The branches of a quantum instrument form a family of completely positive maps i
 classical outcomes, possibly infinitely many. This file develops such families in finite
 dimension, with no countability or finiteness assumption on the index type.
 
-The key fact is analytic. Let `Φ i` be completely positive maps whose finite partial sums are
-trace nonincreasing. On a positive semidefinite input `ρ` the matrices `Φ i ρ` are positive
-semidefinite, the norm of every entry of such a matrix is at most its trace, and the traces of
-finitely many of them sum to at most the trace of `ρ`. So the family `i ↦ Φ i ρ` is summable,
+The key fact is analytic. Let `Φ i` be completely positive maps with a common codomain whose
+finite partial sums are trace nonincreasing. On a positive semidefinite input `ρ` the matrices
+`Φ i ρ` are positive semidefinite, the norm of every entry of such a matrix is at most its trace,
+and the traces of finitely many of them sum to at most the trace of `ρ`. So `i ↦ Φ i ρ` is summable,
 entry by entry. Positive semidefinite matrices span all matrices, so the family is summable on
-every input. Everything is stated pointwise on matrices, which carry their product topology; no
-topology is put on spaces of linear maps.
+every input. For outcome-dependent codomains, `summable_trace_apply` supplies a summable family
+of scalar traces. Everything is stated pointwise on matrices, which carry their product topology;
+no topology is put on spaces of linear maps.
 
 ## Main definitions
 
@@ -36,13 +37,14 @@ topology is put on spaces of linear maps.
 * `Quantum.MatrixMap.familyTrace Φ`: the trace functional `ρ ↦ ∑' i, trace (Φ i ρ)`, when the
   traces are summable on every input, and `0` otherwise. Neither fallback is reached by a
   completely positive family with trace-nonincreasing partial sums.
-* `Quantum.MatrixMap.familyBind Φ Ψ`: Kleisli composition of families, the family whose member at
-  `c` is `familySum fun i ↦ Ψ i c ∘ₗ Φ i`.
+* `Quantum.MatrixMap.familyBind Φ Ψ`: Kleisli composition of families: run the first branch
+  family, then the outcome-selected continuation, summing over intermediate outcomes. The member
+  at `c` is `familySum fun i ↦ Ψ i c ∘ₗ Φ i`.
 
 ## Main results
 
-* `Quantum.MatrixMap.IsCPTNIFamily.summable_apply`: a completely positive family with trace
-  nonincreasing finite partial sums is summable on every matrix.
+* `Quantum.MatrixMap.IsCPTNIFamily.summable_apply`: a completely positive family with a common
+  codomain and trace-nonincreasing finite partial sums is summable on every matrix.
 * `Quantum.MatrixMap.isCP_familySum`, `Quantum.MatrixMap.IsCPTNIFamily.isTNI_familySum`: the sum
   of such a family is completely positive and trace nonincreasing.
 * `Quantum.MatrixMap.IsCPTNIFamily.countable_support`: such a family has countable support, also
@@ -203,9 +205,9 @@ variable [Fintype A] {B : ι → Type*} [∀ i, Fintype (B i)] {C : κ → Type*
 nonincreasing: `∑ i ∈ s, tr (Φ i ρ) ≤ tr ρ` for every finite set `s` and every positive
 semidefinite `ρ`. The output system of `Φ i` may depend on `i`.
 
-The bound is joint, not per member: two copies of the identity map form no such family. These
-are the branch families of the instruments in `VCVio.Quantum.SubInstrument` and
-`VCVio.Quantum.DSubInstrument`. -/
+The bound is joint, not per member: on a nonzero-dimensional system, two copies of the identity
+map form no such family. These are the branch families of the instruments in
+`VCVio.Quantum.SubInstrument` and `VCVio.Quantum.DSubInstrument`. -/
 structure IsCPTNIFamily (Φ : (i : ι) → MatrixMap A (B i)) : Prop where
   /-- Every member is completely positive. -/
   isCP : ∀ i, (Φ i).IsCP
@@ -521,7 +523,10 @@ theorem amplify_familySum (Φ : ι → MatrixMap A B) (R : Type*) :
       have e' : familySum (fun i ↦ (Φ i).amplify R) = 0 := by rw [familySum, dite_eq_right h']
       rw [e, e', amplify_zero]
 
-/-- The sum of a family of completely positive maps is completely positive. -/
+/-- `familySum Φ` is completely positive when every `Φ i` is completely positive.
+If the family is summable on every input, this is its pointwise sum. Otherwise `familySum Φ`
+is the zero map, which is also completely positive. `IsCPTNIFamily.summable_apply` excludes
+that fallback for the branch families of subinstruments. -/
 theorem isCP_familySum [Finite B] {Φ : ι → MatrixMap A B} (hcp : ∀ i, (Φ i).IsCP) :
     (familySum Φ).IsCP := by
   by_cases h : ∀ ρ, Summable fun i ↦ Φ i ρ
