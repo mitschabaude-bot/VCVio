@@ -417,7 +417,9 @@ theorem lossless_ofKraus [Fintype ι] [DecidableEq A] (K : (i : ι) → Matrix (
   simp_rw [branch_ofKraus_apply, MatrixMap.trace_conj_apply]
   rw [← Matrix.trace_sum, ← Finset.sum_mul, hK, Matrix.one_mul]
 
-/-- Every branch of a dependent subinstrument is a sum of Kraus maps. -/
+/-- Each branch of a dependent subinstrument has Kraus operators from `ℂ^A` to `ℂ^(B i)`, indexed
+by `B i × A`. The output system may depend on the outcome, and the outcome type need not be finite
+or countable. -/
 theorem exists_kraus_branch (p : DSubInstrument A ι B) (i : ι) :
     ∃ K : B i × A → Matrix (B i) A ℂ, p.branch i = ∑ k, MatrixMap.conj (K k) :=
   p.isCPTNIFamily.exists_kraus i

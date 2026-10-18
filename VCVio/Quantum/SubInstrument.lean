@@ -428,7 +428,9 @@ theorem lossless_ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ
 
 /-! ## Kraus operators of the branches -/
 
-/-- Every branch of a subinstrument is a sum of Kraus maps. -/
+/-- Each branch of a subinstrument has Kraus operators: `p.branch a ρ = ∑ k, K a k * ρ * (K a k)†`
+with `k : B × A`. The outcome type need not be finite. This is branch by branch;
+`exists_kraus_of_fintype` gives one completeness inequality for finitely many outcomes. -/
 theorem exists_kraus_branch (p : SubInstrument A B α) (a : α) :
     ∃ K : B × A → Matrix B A ℂ, p.branch a = ∑ k, MatrixMap.conj (K k) :=
   p.isCPTNIFamily.exists_kraus a
@@ -448,9 +450,12 @@ theorem Lossless.exists_kraus [Fintype α] [DecidableEq A] {p : SubInstrument A 
       ∑ a, ∑ k, (K a k)ᴴ * K a k = 1 :=
   MatrixMap.exists_kraus_of_isTP_sum p.isCP_branch (p.total_eq_sum_univ ▸ hp)
 
-/-- Kraus operators along the paths of a sequence with finitely many intermediate outcomes: if
-`p.branch a = ∑ i, conj (K a i)` and `(k a).branch b = ∑ j, conj (L a b j)`, the branch of
-`p.bind k` at `b` is the sum over the paths `(a, i, j)` of `conj (L a b j * K a i)`. -/
+/-- Kraus operators along paths. If `p` has finitely many outcomes, with Kraus operators `K a i` on
+branch `a`, and `k a` has Kraus operators `L a b j` on branch `b`, then branch `b` of `p.bind k` is
+`ρ ↦ ∑ a i j, (L a b j * K a i) * ρ * (L a b j * K a i)†`. The operator on the right acts first, so
+on a pure input the path `(a, i, j)` carries the vector `L a b j * K a i * ψ`. Different paths are
+classical alternatives: their output matrices add, not their vectors. The final outcome type need
+not be finite. -/
 theorem branch_bind_eq_sum_conj_mul [Fintype α] {ι κ : Type*} [Fintype ι] [Fintype κ]
     (p : SubInstrument A B α) (k : α → SubInstrument B C β) {K : α → ι → Matrix B A ℂ}
     {L : α → β → κ → Matrix C B ℂ} (hK : ∀ a, p.branch a = ∑ i, MatrixMap.conj (K a i))
