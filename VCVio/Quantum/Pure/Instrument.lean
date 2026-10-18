@@ -22,8 +22,8 @@ or a computation that forgets an outcome, can produce a mixed state, and a pure-
 about it must track the individual Kraus contributions (`Quantum.MatrixMap.conj`).
 
 Vector, adjoint, and matrix-order conventions are in `VCVio.Quantum.Pure.Vector`.
-`Quantum.SubInstrument` is an atomic, possibly trace-losing instrument;
-`Quantum.DSubInstrument` also allows the output system to depend on the outcome.
+`Quantum.DSubInstrument` is an atomic, possibly trace-losing instrument whose output system
+can depend on the outcome. `Quantum.SubInstrument` abbreviates the constant-output case.
 
 ## Constructors
 
@@ -42,21 +42,21 @@ Vector, adjoint, and matrix-order conventions are in `VCVio.Quantum.Pure.Vector`
 
 For a measurement with finitely many Kraus operators, `∑ a, (K a)† * K a = 1`, the distribution of
 the outcome on `|ψ⟩⟨ψ|` gives the event `E` the weight `∑ a ∈ E, ‖K a •ᵥ ψ‖²`
-(`Quantum.SubInstrument.outcomeMeasure_ofKraus_ofVector`). The `outcomeMeasure_*_bind_ofVector`
+(`Quantum.DSubInstrument.outcomeMeasure_ofKraus_ofVector`). The `outcomeMeasure_*_bind_ofVector`
 lemmas run a continuation on the unnormalized vector `K a •ᵥ ψ`, whose squared norm already is the
 probability of `a`, so a `do` block reduces to vectors one step at a time. Changing the input
 vector moves the weight of every event by at most `(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`
-(`Quantum.SubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le`).
+(`Quantum.DSubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le`).
 
 ## Any outcome type, and dependent output systems
 
 The same lemmas hold branch by branch for any subinstrument: if `p.branch a = MatrixMap.conj K`,
 then outcome `a` has weight `‖K •ᵥ ψ‖²` and leaves `K •ᵥ ψ`
-(`Quantum.SubInstrument.post_ofVector_of_branch_eq_conj`,
-`Quantum.SubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj`). If every branch has
+(`Quantum.DSubInstrument.post_ofVector_of_branch_eq_conj`,
+`Quantum.DSubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj`). If every branch has
 this form, the distribution is the sum of the weighted point masses over all outcomes, with no
-finiteness assumption (`*_of_forall_branch_eq_conj`). `Quantum.DSubInstrument` has the same lemmas
-when the output system depends on the outcome (`Quantum.DSubInstrument.post_ofKraus_ofVector`).
+finiteness assumption (`*_of_forall_branch_eq_conj`). These statements allow the output system
+to depend on the outcome (`Quantum.DSubInstrument.post_ofKraus_ofVector`).
 Lemmas about a single outcome need measurable singletons.
 
 ## References
@@ -73,23 +73,31 @@ public section
 
 open MeasureTheory
 open scoped ComplexOrder InnerProductSpace Matrix.Norms.L2Operator
-open Matrix
+open Matrix WithLp
 
 universe u v w
 
 namespace Quantum
 
+namespace DSubInstrument
+
+variable {A : Type*} [Fintype A] {ι : Type*} {B : ι → Type*} [∀ i, Fintype (B i)]
+
+/-- On the zero substate every outcome has weight zero. -/
+theorem outcomeMeasure_eq_zero_of_matrix_eq_zero [MeasurableSpace ι] (p : DSubInstrument A ι B)
+    {ρ : SubState A} (hρ : ρ.matrix = 0) : p.outcomeMeasure ρ = 0 := by
+  ext s hs
+  simp [outcomeMeasure_apply _ _ hs, hρ]
+
+end DSubInstrument
+
 namespace SubInstrument
+
+open DSubInstrument
 
 variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
 
 /-! ## A single map followed by a continuation -/
-
-/-- On the zero substate every outcome has weight zero. -/
-theorem outcomeMeasure_eq_zero_of_matrix_eq_zero [MeasurableSpace α] (p : SubInstrument A B α)
-    {ρ : SubState A} (hρ : ρ.matrix = 0) : p.outcomeMeasure ρ = 0 := by
-  ext s hs
-  simp [outcomeMeasure_apply _ _ hs, hρ]
 
 /-- Each branch of a composite that starts with a single map is the branch of the continuation
 after that map. -/
@@ -160,7 +168,7 @@ theorem lossless_ofContraction {K : Matrix B A ℂ} (hK : ‖K‖ ≤ 1) (h : K�
 unchanged. -/
 theorem ofContraction_one (h : ‖(1 : Matrix A A ℂ)‖ ≤ 1) :
     ofContraction (1 : Matrix A A ℂ) h = SubInstrument.pure PUnit.unit :=
-  SubInstrument.ext <| funext fun u ↦ by
+  DSubInstrument.ext <| funext fun u ↦ by
     cases u
     rw [branch_ofContraction, MatrixMap.conj_one, branch_pure_self]
 
@@ -177,7 +185,7 @@ theorem ofContraction_bind_ofContraction [DecidableEq B] (K : Matrix B A ℂ) (h
     (L : Matrix C B ℂ) (hL : ‖L‖ ≤ 1) :
     ((ofContraction K hK).bind fun _ ↦ ofContraction L hL) =
       ofContraction (L * K) (l2_opNorm_mul_le_one hL hK) :=
-  SubInstrument.ext <| funext fun u ↦ by
+  DSubInstrument.ext <| funext fun u ↦ by
     rw [branch_ofContraction_bind_apply, branch_ofContraction, branch_ofContraction,
       MatrixMap.conj_mul]
 
@@ -221,109 +229,6 @@ theorem post_ofContraction_bind_ofVector (K : Matrix B A ℂ) (hK : ‖K‖ ≤ 
 
 end ofContraction
 
-/-! ## The Born rule for Kraus measurements -/
-
-section ofKraus
-
-variable [Fintype α] [DecidableEq A]
-
-/-- After a Kraus measurement reports `a` on `|ψ⟩⟨ψ|`, the state is `|K a ψ⟩⟨K a ψ|`, unnormalized:
-its trace `‖K a •ᵥ ψ‖²` is the probability of `a`. When that probability is positive, the
-conditional state is described by the unit vector `K a •ᵥ ψ / ‖K a •ᵥ ψ‖`. -/
-theorem post_ofKraus_ofVector (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1)
-    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
-    (ofKraus K hK).post (.ofVector ψ hψ) a =
-      .ofVector (K a •ᵥ ψ) ((norm_applyVec_le_of_sum_conjTranspose_mul_self hK a ψ).trans hψ) :=
-  SubState.ext <| conj_ketBra_self (K a) ψ
-
-/-- Vector form of the chain rule for a Kraus measurement: the outcome measure of a composite
-that starts with the measurement, on the pure substate of `ψ`, sums the outcome measures of the
-continuations on the pure substates of the branches `K a •ᵥ ψ`. -/
-theorem outcomeMeasure_ofKraus_bind_ofVector {β : Type*} [MeasurableSpace β]
-    (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1) (k : α → SubInstrument B C β)
-    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
-    ((ofKraus K hK).bind k).outcomeMeasure (.ofVector ψ hψ) =
-      ∑ a, (k a).outcomeMeasure (.ofVector (K a •ᵥ ψ)
-        ((norm_applyVec_le_of_sum_conjTranspose_mul_self hK a ψ).trans hψ)) := by
-  rw [outcomeMeasure_bind, Measure.sum_fintype]
-  simp_rw [post_ofKraus_ofVector K hK ψ hψ]
-
-variable [MeasurableSpace α]
-
-/-- The Born rule: for Kraus operators with `∑ a, (K a)† * K a = 1`, the distribution of the outcome
-on `|ψ⟩⟨ψ|` is `∑ a, ‖K a •ᵥ ψ‖² • δ_a`, of total mass `‖ψ‖²`. For a unit vector the weights are
-probabilities. -/
-theorem outcomeMeasure_ofKraus_ofVector (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1)
-    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
-    (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) =
-      ∑ a, ENNReal.ofReal (‖K a •ᵥ ψ‖ ^ 2) • Measure.dirac a := by
-  rw [outcomeMeasure_eq_sum_univ]
-  refine Finset.sum_congr rfl fun a _ ↦ ?_
-  rw [branch_ofKraus_apply, SubState.matrix_ofVector, conj_ketBra_self, trace_re_ketBra_self]
-
-variable [MeasurableSingletonClass α]
-
-/-- Born rule for a single outcome. -/
-theorem outcomeMeasure_ofKraus_ofVector_singleton (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
-    (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) {a} = ENNReal.ofReal (‖K a •ᵥ ψ‖ ^ 2) := by
-  rw [outcomeMeasure_apply_singleton, branch_ofKraus_apply, SubState.matrix_ofVector,
-    conj_ketBra_self, trace_re_ketBra_self]
-
-/-- Born rule for an event: its weight is the total squared norm of the branches of its
-outcomes. -/
-theorem outcomeMeasure_ofKraus_ofVector_apply (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (s : Set α)
-    [DecidablePred (· ∈ s)] :
-    (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) s =
-      ENNReal.ofReal (∑ a with a ∈ s, ‖K a •ᵥ ψ‖ ^ 2) := by
-  have hs : MeasurableSet s := s.toFinite.measurableSet
-  rw [outcomeMeasure_ofKraus_ofVector, Measure.coe_finsetSum, Finset.sum_apply,
-    ENNReal.ofReal_sum_of_nonneg fun _ _ ↦ sq_nonneg _, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun a _ ↦ ?_
-  rw [Measure.smul_apply, Measure.dirac_apply' _ hs, smul_eq_mul, Set.indicator_apply]
-  split_ifs <;> simp
-
-/-- Born rule for an event, as a real number. -/
-theorem outcomeMeasure_real_ofKraus_ofVector_apply (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (s : Set α)
-    [DecidablePred (· ∈ s)] :
-    ((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s = ∑ a with a ∈ s, ‖K a •ᵥ ψ‖ ^ 2 := by
-  rw [Measure.real, outcomeMeasure_ofKraus_ofVector_apply,
-    ENNReal.toReal_ofReal (Finset.sum_nonneg fun _ _ ↦ sq_nonneg _)]
-
-/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
-`|p_E(ψ) - p_E(φ)| ≤ (‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`, where
-`p_E(ψ) = ∑ a ∈ E, ‖K_a ψ‖²` on the substate `|ψ⟩⟨ψ|`.
-
-The coefficient is at most two for subnormalized inputs and does not depend on the number
-of outcomes. This theorem uses `ofKraus`; the arbitrary-outcome Born identities below do not
-by themselves extend this perturbation result to infinite families. The vector hybrid bound
-`Quantum.norm_queryState_sub_queryState_le` has coefficient one before event conversion. -/
-theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
-    (s : Set α) :
-    |((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s -
-      ((ofKraus K hK).outcomeMeasure (.ofVector φ hφ)).real s| ≤ (‖ψ‖ + ‖φ‖) * ‖ψ - φ‖ := by
-  classical
-  rw [outcomeMeasure_real_ofKraus_ofVector_apply, outcomeMeasure_real_ofKraus_ofVector_apply]
-  exact abs_sum_norm_sq_applyVec_sub_sum_norm_sq_applyVec_le _ K
-    (fun χ ↦ sum_norm_sq_applyVec_le hK _ χ) ψ φ
-
-/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
-on subnormalized vectors, event weights from `ofKraus` differ by at most `2 * ‖ψ - φ‖`.
-This factor two converts vector distance to event-weight difference; the vector hybrid bound
-`Quantum.norm_queryState_sub_queryState_le` itself has coefficient one. -/
-theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
-    (s : Set α) :
-    |((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s -
-      ((ofKraus K hK).outcomeMeasure (.ofVector φ hφ)).real s| ≤ 2 * ‖ψ - φ‖ :=
-  (abs_outcomeMeasure_real_ofKraus_ofVector_sub_le K hK ψ φ hψ hφ s).trans <|
-    mul_le_mul_of_nonneg_right (by linarith) (norm_nonneg _)
-
-end ofKraus
-
 /-! ## Projective measurements -/
 
 section ofProjectiveFinset
@@ -359,7 +264,7 @@ noncomputable def ofProjectiveFinset (P : α → Matrix A A ℂ)
           sum_conjTranspose_mul_self_of_isStarProjection_finset hP s hsum, Matrix.one_mul]
   { branch := fun a ↦ MatrixMap.conj (P a)
     isCP_branch := h.isCP
-    isTNI_sum := h.isTNI_sum }
+    trace_le := h.sum_trace_re_le }
 
 variable (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a))
     (s : Finset α) (hs : ∀ a ∉ s, P a = 0) (hsum : ∑ a ∈ s, P a = 1)
@@ -372,7 +277,7 @@ theorem branch_ofProjectiveFinset_apply (a : α) :
 
 /-- A complete finitely supported projective measurement preserves trace. -/
 theorem lossless_ofProjectiveFinset : (ofProjectiveFinset P hP s hs hsum).Lossless := by
-  rw [Lossless, total_eq_sum _ (s := s) (fun a ha ↦ by simp [hs a ha])]
+  rw [lossless_iff_isTP_total, total_eq_sum _ (s := s) (fun a ha ↦ by simp [hs a ha])]
   intro ρ
   simp_rw [LinearMap.sum_apply, Matrix.trace_sum, branch_ofProjectiveFinset_apply,
     MatrixMap.trace_conj_apply]
@@ -485,7 +390,7 @@ variable (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a)) (hsum 
 /-- A projective measurement is the Kraus measurement with its projections. -/
 theorem ofProjective_eq_ofKraus :
     ofProjective P hP hsum = ofKraus P (sum_conjTranspose_mul_self_of_isStarProjection hP hsum) :=
-  SubInstrument.ext rfl
+  DSubInstrument.ext rfl
 
 /-- The finite-label constructor is the arbitrary-label constructor supported on all labels. -/
 theorem ofProjective_eq_ofProjectiveFinset :
@@ -540,56 +445,6 @@ theorem outcomeMeasure_ofProjective_ofVector_singleton_eq_inner [MeasurableSpace
   rw [outcomeMeasure_ofProjective_ofVector_singleton, norm_sq_applyVec_of_isStarProjection (hP a)]
 
 end ofProjective
-
-/-! ## Kraus-form branches over any outcome type
-
-A branch of the form `MatrixMap.conj K` sends the pure substate of `ψ` to that of `K •ᵥ ψ`, with
-weight `‖K •ᵥ ψ‖ ^ 2`. This holds for subinstruments with any outcome type, also when infinitely
-many branches are nonzero; the Kraus measurements above are the case of finitely many outcomes.
--/
-
-section branchConj
-
-variable [DecidableEq A]
-
-/-- If the branch of a subinstrument at `a` is the Kraus map of `K`, then `K` does not increase
-the norm of vectors: `‖K •ᵥ ψ‖ ^ 2` is the trace of the branch on `|ψ⟩⟨ψ|`. -/
-theorem norm_applyVec_le_of_branch_eq_conj (p : SubInstrument A B α) {a : α} {K : Matrix B A ℂ}
-    (hK : p.branch a = MatrixMap.conj K) (ψ : EuclideanSpace ℂ A) : ‖K •ᵥ ψ‖ ≤ ‖ψ‖ := by
-  refine (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp ?_
-  have h := p.isCPTNIFamily.isTNI a (ketBra ψ ψ) (posSemidef_ketBra_self ψ)
-  rwa [hK, conj_ketBra_self, trace_re_ketBra_self, trace_re_ketBra_self] at h
-
-/-- If the branch of a subinstrument at `a` is the Kraus map of `K`, then after outcome `a` the
-pure substate of `ψ` becomes the pure substate of `K •ᵥ ψ`. -/
-theorem post_ofVector_of_branch_eq_conj (p : SubInstrument A B α) {a : α} {K : Matrix B A ℂ}
-    (hK : p.branch a = MatrixMap.conj K) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
-    p.post (.ofVector ψ hψ) a =
-      .ofVector (K •ᵥ ψ) ((p.norm_applyVec_le_of_branch_eq_conj hK ψ).trans hψ) :=
-  SubState.ext <| by
-    rw [matrix_post, hK, SubState.matrix_ofVector, SubState.matrix_ofVector, conj_ketBra_self]
-
-/-- Born rule for a Kraus-form branch: if the branch at `a` is the Kraus map of `K`, then on the
-pure substate of `ψ` the outcome `a` has weight `‖K •ᵥ ψ‖ ^ 2`. -/
-theorem outcomeMeasure_ofVector_singleton_of_branch_eq_conj [MeasurableSpace α]
-    [MeasurableSingletonClass α] (p : SubInstrument A B α) {a : α} {K : Matrix B A ℂ}
-    (hK : p.branch a = MatrixMap.conj K) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
-    p.outcomeMeasure (.ofVector ψ hψ) {a} = ENNReal.ofReal (‖K •ᵥ ψ‖ ^ 2) := by
-  rw [outcomeMeasure_apply_singleton, hK, SubState.matrix_ofVector, conj_ketBra_self,
-    trace_re_ketBra_self]
-
-/-- Born rule for a subinstrument whose branches are all Kraus maps, over any outcome type: on the
-pure substate of `ψ`, the outcome measure is the sum of the point masses at the outcomes `a` with
-weights `‖K a •ᵥ ψ‖ ^ 2`. -/
-theorem outcomeMeasure_ofVector_of_forall_branch_eq_conj [MeasurableSpace α]
-    (p : SubInstrument A B α) {K : α → Matrix B A ℂ}
-    (hK : ∀ a, p.branch a = MatrixMap.conj (K a)) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
-    p.outcomeMeasure (.ofVector ψ hψ) =
-      Measure.sum fun a ↦ ENNReal.ofReal (‖K a •ᵥ ψ‖ ^ 2) • Measure.dirac a := by
-  rw [outcomeMeasure_eq_sum]
-  simp only [hK, SubState.matrix_ofVector, conj_ketBra_self, trace_re_ketBra_self]
-
-end branchConj
 
 end SubInstrument
 
@@ -661,11 +516,127 @@ theorem outcomeMeasure_ofKraus_ofVector_singleton [MeasurableSpace ι]
 
 end ofKraus
 
+section ofKraus
+
+variable [Fintype ι]
+
+/-- Vector form of the chain rule for a Kraus measurement: the outcome measure of a composite
+that starts with the measurement, on the pure substate of `ψ`, sums the outcome measures of the
+continuations on the pure substates of the branches `K a •ᵥ ψ`. -/
+theorem outcomeMeasure_ofKraus_bind_ofVector {β : Type*} {C : β → Type*}
+    [∀ b, Fintype (C b)] [MeasurableSpace β]
+    (K : (i : ι) → Matrix (B i) A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1)
+    (k : (i : ι) → DSubInstrument (B i) β C)
+    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
+    ((ofKraus K hK).bind k).outcomeMeasure (.ofVector ψ hψ) =
+      ∑ a, (k a).outcomeMeasure (.ofVector (K a •ᵥ ψ)
+        (((ofKraus K hK).norm_applyVec_le_of_branch_eq_conj
+          (branch_ofKraus_apply K hK a) ψ).trans hψ)) := by
+  rw [outcomeMeasure_bind, Measure.sum_fintype]
+  simp_rw [post_ofKraus_ofVector K hK ψ hψ]
+
+variable [MeasurableSpace ι]
+
+/-- The Born rule: for Kraus operators with `∑ a, (K a)† * K a = 1`, the distribution of the outcome
+on `|ψ⟩⟨ψ|` is `∑ a, ‖K a •ᵥ ψ‖² • δ_a`, of total mass `‖ψ‖²`. For a unit vector the weights are
+probabilities. -/
+theorem outcomeMeasure_ofKraus_ofVector (K : (i : ι) → Matrix (B i) A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1)
+    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
+    (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) =
+      ∑ a, ENNReal.ofReal (‖K a •ᵥ ψ‖ ^ 2) • Measure.dirac a := by
+  rw [outcomeMeasure_eq_sum_univ]
+  refine Finset.sum_congr rfl fun a _ ↦ ?_
+  rw [branch_ofKraus_apply, SubState.matrix_ofVector, conj_ketBra_self, trace_re_ketBra_self]
+
+variable [MeasurableSingletonClass ι]
+
+/-- Born rule for an event: its weight is the total squared norm of the branches of its
+outcomes. -/
+theorem outcomeMeasure_ofKraus_ofVector_apply (K : (i : ι) → Matrix (B i) A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (s : Set ι)
+    [DecidablePred (· ∈ s)] :
+    (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) s =
+      ENNReal.ofReal (∑ a with a ∈ s, ‖K a •ᵥ ψ‖ ^ 2) := by
+  have hs : MeasurableSet s := s.toFinite.measurableSet
+  rw [outcomeMeasure_ofKraus_ofVector, Measure.coe_finsetSum, Finset.sum_apply,
+    ENNReal.ofReal_sum_of_nonneg fun _ _ ↦ sq_nonneg _, Finset.sum_filter]
+  refine Finset.sum_congr rfl fun a _ ↦ ?_
+  rw [Measure.smul_apply, Measure.dirac_apply' _ hs, smul_eq_mul, Set.indicator_apply]
+  split_ifs <;> simp
+
+/-- Born rule for an event, as a real number. -/
+theorem outcomeMeasure_real_ofKraus_ofVector_apply (K : (i : ι) → Matrix (B i) A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (s : Set ι)
+    [DecidablePred (· ∈ s)] :
+    ((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s =
+      ∑ a with a ∈ s, ‖K a •ᵥ ψ‖ ^ 2 := by
+  rw [Measure.real, outcomeMeasure_ofKraus_ofVector_apply,
+    ENNReal.toReal_ofReal (Finset.sum_nonneg fun _ _ ↦ sq_nonneg _)]
+
+/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
+`|p_E(ψ) - p_E(φ)| ≤ (‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`, where
+`p_E(ψ) = ∑ a ∈ E, ‖K_a ψ‖²` on the substate `|ψ⟩⟨ψ|`.
+
+The coefficient is at most two for subnormalized inputs and does not depend on the number
+of outcomes. This theorem uses `ofKraus`; the arbitrary-outcome Born identities do not
+by themselves extend this perturbation result to infinite families. The vector hybrid bound
+`Quantum.norm_queryState_sub_queryState_le` has coefficient one before event conversion. -/
+theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le
+    (K : (i : ι) → Matrix (B i) A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
+    (s : Set ι) :
+    |((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s -
+      ((ofKraus K hK).outcomeMeasure (.ofVector φ hφ)).real s| ≤ (‖ψ‖ + ‖φ‖) * ‖ψ - φ‖ := by
+  classical
+  rw [outcomeMeasure_real_ofKraus_ofVector_apply, outcomeMeasure_real_ofKraus_ofVector_apply]
+  let t := Finset.univ.filter (· ∈ s)
+  let v (χ : EuclideanSpace ℂ A) : PiLp 2 (fun i : t ↦ EuclideanSpace ℂ (B i)) :=
+    toLp 2 fun i ↦ K i •ᵥ χ
+  have hv (χ : EuclideanSpace ℂ A) : ‖v χ‖ ^ 2 = ∑ i ∈ t, ‖K i •ᵥ χ‖ ^ 2 := by
+    rw [PiLp.norm_sq_eq_of_L2]
+    exact Finset.sum_coe_sort t fun i ↦ ‖K i •ᵥ χ‖ ^ 2
+  have hle (χ : EuclideanSpace ℂ A) : ‖v χ‖ ≤ ‖χ‖ := by
+    apply (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp
+    rw [hv]
+    simpa only [branch_ofKraus_apply, conj_ketBra_self, trace_re_ketBra_self] using
+      (ofKraus K hK).sum_trace_re_le t (posSemidef_ketBra_self χ)
+  have hsub : v ψ - v φ = v (ψ - φ) := by
+    refine (WithLp.toLp_sub 2 _ _).symm.trans (congrArg (toLp 2) (funext fun i ↦ ?_))
+    exact (map_sub (Matrix.toEuclideanLin (K i)) ψ φ).symm
+  change |∑ i ∈ t, ‖K i •ᵥ ψ‖ ^ 2 - ∑ i ∈ t, ‖K i •ᵥ φ‖ ^ 2| ≤ _
+  rw [← hv, ← hv]
+  have hdiff : |‖v ψ‖ - ‖v φ‖| ≤ ‖ψ - φ‖ :=
+    (abs_norm_sub_norm_le _ _).trans (hsub ▸ hle _)
+  have hsq : ‖v ψ‖ ^ 2 - ‖v φ‖ ^ 2 = (‖v ψ‖ + ‖v φ‖) * (‖v ψ‖ - ‖v φ‖) := by
+    ring
+  rw [hsq, abs_mul, abs_of_nonneg (add_nonneg (norm_nonneg _) (norm_nonneg _))]
+  exact mul_le_mul (add_le_add (hle ψ) (hle φ)) hdiff (abs_nonneg _)
+    (add_nonneg (norm_nonneg _) (norm_nonneg _))
+
+/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
+on subnormalized vectors, event weights from `ofKraus` differ by at most `2 * ‖ψ - φ‖`.
+This factor two converts vector distance to event-weight difference; the vector hybrid bound
+`Quantum.norm_queryState_sub_queryState_le` itself has coefficient one. -/
+theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul
+    (K : (i : ι) → Matrix (B i) A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
+    (s : Set ι) :
+    |((ofKraus K hK).outcomeMeasure (.ofVector ψ hψ)).real s -
+      ((ofKraus K hK).outcomeMeasure (.ofVector φ hφ)).real s| ≤ 2 * ‖ψ - φ‖ :=
+  (abs_outcomeMeasure_real_ofKraus_ofVector_sub_le K hK ψ φ hψ hφ s).trans <|
+    mul_le_mul_of_nonneg_right (by linarith) (norm_nonneg _)
+
+end ofKraus
+
+
 end DSubInstrument
 
 /-! ## Unitaries on a fixed register -/
 
 namespace SubInstrument
+
+open DSubInstrument
 
 variable {M : Type u} [Fintype M] [DecidableEq M]
 

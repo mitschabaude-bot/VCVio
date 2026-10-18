@@ -16,8 +16,9 @@ A Hadamard gate followed by the computational-basis measurement of one qubit, st
 through the density matrix `|+⟩⟨+|`, which the vector route reaches. Further checks cover
 natural-number projective labels, complex phase and interference, Pauli commutator bounds,
 the hybrid bound at one query, the norm of a gate on one of two qubits, and local measurement
-of a Bell pair. Last, the geometric instrument, which has infinitely many
-outcomes, is written in Kraus form, and the Born rule on vectors gives outcome `n` the weight
+of a Bell pair. A keep-or-discard measurement checks outcome-dependent output registers. Last,
+the geometric instrument, which has infinitely many outcomes, is written in Kraus form, and the Born
+rule on vectors gives outcome `n` the weight
 `2^{-(n+1)} ‖ψ‖ ^ 2`.
 -/
 
@@ -103,7 +104,7 @@ noncomputable def plus : SubState (Fin 2) where
 /-- Density route: on `|+⟩⟨+|`, each outcome of the measurement has weight `1 / 2`. -/
 theorem outcomeMeasure_measureZ_plus (a : Fin 2) :
     measureZ.outcomeMeasure plus {a} = ENNReal.ofReal (1 / 2) := by
-  rw [SubInstrument.outcomeMeasure_apply_singleton]
+  rw [DSubInstrument.outcomeMeasure_apply_singleton]
   congr 1
   fin_cases a <;> simp [measureZ, proj, plus, Matrix.trace]
 
@@ -169,7 +170,7 @@ example (a : Fin 2) :
     hadamardThenMeasure.outcomeMeasure (.ofVector ket0 norm_ket0_le_one) {a} =
       ENNReal.ofReal (1 / 2) := by
   rw [hadamardThenMeasure, SubInstrument.outcomeMeasure_ofUnitary_bind_ofVector, measureZ,
-    SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
+    DSubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
   exact congrArg ENNReal.ofReal (norm_sq_proj_applyVec_hadamard_applyVec_ket0 a)
 
 /-- Natural labels give weights one half at `0` and `1`, and zero everywhere else. -/
@@ -212,7 +213,7 @@ example (a : Fin 2) :
 example (ψ φ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1) (s : Set (Fin 2)) :
     |(measureZ.outcomeMeasure (.ofVector ψ hψ)).real s -
       (measureZ.outcomeMeasure (.ofVector φ hφ)).real s| ≤ 2 * ‖ψ - φ‖ :=
-  SubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul proj
+  DSubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul proj
     sum_conjTranspose_proj_mul_proj ψ φ hψ hφ s
 
 /-! ## Complex phase and interference -/
@@ -257,7 +258,7 @@ theorem outcomeMeasure_measureX_phaseGate_plus (a : Fin 2) :
       (.ofVector (phaseGate •ᵥ hadamard •ᵥ ket0) norm_phaseGate_applyVec_plus.le) {a} =
         ENNReal.ofReal (1 / 2) := by
   rw [measureX, SubInstrument.outcomeMeasure_ofUnitary_bind_ofVector, measureZ,
-    SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
+    DSubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
   change ENNReal.ofReal (‖proj a •ᵥ hadamard •ᵥ phaseGate •ᵥ hadamard •ᵥ ket0‖ ^ 2) = _
   rw [hadamard_applyVec_phaseGate_plus, EuclideanSpace.norm_sq_eq, Fin.sum_univ_two]
   fin_cases a <;> norm_num [proj, Matrix.mulVec, dotProduct, Matrix.single_apply,
@@ -361,22 +362,43 @@ theorem norm_sq_proj_kronecker_one_applyVec_bell (a : Fin 2) :
 theorem outcomeMeasure_frame_measureZ_bell (a : Fin 2) :
     (measureZ.frame (Fin 2)).outcomeMeasure (.ofVector bell norm_bell.le) {a} =
       ENNReal.ofReal (1 / 2) := by
-  rw [measureZ, SubInstrument.frame_ofKraus,
-    SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton,
+  rw [measureZ, DSubInstrument.frame_ofKraus,
+    DSubInstrument.outcomeMeasure_ofKraus_ofVector_singleton,
     norm_sq_proj_kronecker_one_applyVec_bell]
 
 /-- The retained Bell branch is the unnormalized correlated vector `|aa⟩ / √2`. -/
 theorem post_frame_measureZ_bell (a : Fin 2) :
     ∃ h, (measureZ.frame (Fin 2)).post (.ofVector bell norm_bell.le) a =
       .ofVector (amp • (EuclideanSpace.single a 1 ⊗ᵥ EuclideanSpace.single a 1)) h := by
-  have h := SubInstrument.post_ofKraus_ofVector
+  have h := DSubInstrument.post_ofKraus_ofVector
     (fun a ↦ proj a ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ))
-    (SubInstrument.sum_conjTranspose_kronecker_one_mul_self (Fin 2)
+    (DSubInstrument.sum_conjTranspose_kronecker_one_mul_self (Fin 2)
       sum_conjTranspose_proj_mul_proj) bell norm_bell.le a
   have hamp : ‖amp‖ ≤ 1 := by nlinarith [norm_amp_sq, norm_nonneg amp]
   refine ⟨by simpa [norm_smul, norm_tensorVec] using hamp, SubState.ext ?_⟩
-  simpa only [measureZ, SubInstrument.frame_ofKraus, SubState.matrix_ofVector,
+  simpa only [measureZ, DSubInstrument.frame_ofKraus, SubState.matrix_ofVector,
     proj_kronecker_one_applyVec_bell] using congrArg SubState.matrix h
+
+/-! ## Outcome-dependent output registers -/
+
+/-- The vector event bound applies when one outcome keeps a qubit and the other discards it.
+This checks elaboration with output dimensions two and one in the same Kraus family. -/
+example (ψ φ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
+    (s : Set (Fin 2)) :
+    let p := DSubInstrument.ofKraus QuantumBasic.keepKraus QuantumBasic.sum_keepKraus
+    |(p.outcomeMeasure (.ofVector ψ hψ)).real s -
+      (p.outcomeMeasure (.ofVector φ hφ)).real s| ≤ 2 * ‖ψ - φ‖ :=
+  DSubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul
+    QuantumBasic.keepKraus QuantumBasic.sum_keepKraus ψ φ hψ hφ s
+
+/-- The vector chain rule accepts a continuation with outcome-dependent output registers. -/
+example (ψ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) :
+    let p := DSubInstrument.ofKraus QuantumBasic.keepKraus QuantumBasic.sum_keepKraus
+    (p.bind QuantumBasic.remeasure).outcomeMeasure (.ofVector ψ hψ) =
+      ∑ i, (QuantumBasic.remeasure i).outcomeMeasure (p.post (.ofVector ψ hψ) i) := by
+  dsimp only
+  rw [DSubInstrument.outcomeMeasure_ofKraus_bind_ofVector]
+  simp_rw [DSubInstrument.post_ofKraus_ofVector]
 
 /-! ## A measurement with infinitely many outcomes -/
 
@@ -401,7 +423,7 @@ substate of `ψ`, outcome `n` has weight `2^{-(n+1)} ‖ψ‖ ^ 2`. -/
 example (ψ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (n : ℕ) :
     QuantumBasic.geometric.outcomeMeasure (.ofVector ψ hψ) {n} =
       ENNReal.ofReal (QuantumBasic.geomWeight n * ‖ψ‖ ^ 2) := by
-  rw [SubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj _
+  rw [DSubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj _
     (geometric_branch_eq_conj n)]
   congr 1
   rw [map_smul, LinearMap.smul_apply, one_applyVec, norm_smul, mul_pow, geomAmp,
@@ -412,7 +434,7 @@ example (ψ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (n : ℕ) :
 rescaled vector `√(2^{-(n+1)}) • ψ`. -/
 example (ψ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (n : ℕ) :
     ∃ h, QuantumBasic.geometric.post (.ofVector ψ hψ) n = .ofVector (geomAmp n • ψ) h := by
-  refine ⟨?_, (SubInstrument.post_ofVector_of_branch_eq_conj _
+  refine ⟨?_, (DSubInstrument.post_ofVector_of_branch_eq_conj _
     (geometric_branch_eq_conj n) ψ hψ).trans ?_⟩
   · exact ((QuantumBasic.geometric.norm_applyVec_le_of_branch_eq_conj
       (geometric_branch_eq_conj n) ψ).trans hψ).trans_eq' (by

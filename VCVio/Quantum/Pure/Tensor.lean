@@ -16,9 +16,9 @@ operators follow the same order: `(K ⊗ₖ L) (b, s) (a, r) = K b a * L s r`.
 Open the `Quantum` scope for `⊗ᵥ` and the `Kronecker` scope for `⊗ₖ`.
 
 An operator `K` on `A` acts on `A × R` as `K ⊗ₖ 1`, leaving `R` untouched. This is the vector form
-of `Quantum.SubInstrument.frame R`, which puts the untouched register on the right: framing
+of `Quantum.DSubInstrument.frame R`, which puts the untouched register on the right: framing
 neither prepares nor discards `R`, and the input may be entangled with it
-(`Quantum.SubInstrument.frame_ofContraction`, `Quantum.SubInstrument.frame_ofKraus`).
+(`Quantum.SubInstrument.frame_ofContraction`, `Quantum.DSubInstrument.frame_ofKraus`).
 
 The norm of `K ⊗ₖ 1` is the norm of `K` when `R` is nonempty (`Quantum.l2_opNorm_kronecker_one`),
 and at most the norm of `K` in general (`Quantum.l2_opNorm_kronecker_one_le`; it is `0` when `R`
@@ -237,6 +237,8 @@ end Norm
 
 namespace SubInstrument
 
+open DSubInstrument
+
 variable [Fintype A] [Fintype B] [DecidableEq A] (R) [Fintype R] [DecidableEq R]
 
 /-- Framing the subinstrument of a contraction `K` by an ancilla gives the subinstrument of
@@ -244,27 +246,8 @@ variable [Fintype A] [Fintype B] [DecidableEq A] (R) [Fintype R] [DecidableEq R]
 theorem frame_ofContraction (K : Matrix B A ℂ) (hK : ‖K‖ ≤ 1) :
     (ofContraction K hK).frame R =
       ofContraction (K ⊗ₖ (1 : Matrix R R ℂ)) ((l2_opNorm_kronecker_one_le K).trans hK) :=
-  SubInstrument.ext <| funext fun u ↦ by
+  DSubInstrument.ext <| funext fun u ↦ by
     rw [branch_frame_apply, branch_ofContraction, branch_ofContraction, MatrixMap.amplify_conj]
-
-omit [Fintype A] in
-/-- The operators `K a ⊗ₖ 1` of a complete family of Kraus operators form a complete family. -/
-theorem sum_conjTranspose_kronecker_one_mul_self [Fintype α] {K : α → Matrix B A ℂ}
-    (hK : ∑ a, (K a)ᴴ * K a = 1) :
-    ∑ a, (K a ⊗ₖ (1 : Matrix R R ℂ))ᴴ * (K a ⊗ₖ (1 : Matrix R R ℂ)) = 1 := by
-  rw [← Matrix.one_kronecker_one, ← hK]
-  ext ⟨a, r⟩ ⟨a', s⟩
-  simp only [Matrix.conjTranspose_kronecker, Matrix.conjTranspose_one, ← Matrix.mul_kronecker_mul,
-    Matrix.mul_one, Matrix.sum_apply, kronecker_apply, Finset.sum_mul]
-
-/-- Framing a Kraus measurement by an ancilla gives the Kraus measurement with operators
-`K a ⊗ₖ 1`. -/
-theorem frame_ofKraus [Fintype α] (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1) :
-    (ofKraus K hK).frame R =
-      ofKraus (fun a ↦ K a ⊗ₖ (1 : Matrix R R ℂ))
-        (sum_conjTranspose_kronecker_one_mul_self R hK) :=
-  SubInstrument.ext <| funext fun a ↦ by
-    rw [branch_frame_apply, branch_ofKraus_apply, branch_ofKraus_apply, MatrixMap.amplify_conj]
 
 omit [DecidableEq R] in
 /-- A framed contraction sends the pure substate of a product vector `ψ ⊗ᵥ χ` to the pure
@@ -280,5 +263,31 @@ theorem post_frame_ofContraction_ofVector_tensorVec (K : Matrix B A ℂ) (hK : �
       SubState.matrix_ofVector, kronecker_one_applyVec_tensorVec]
 
 end SubInstrument
+
+namespace DSubInstrument
+
+variable {B : α → Type*} [∀ a, Fintype (B a)] (R) [Fintype R] [DecidableEq R]
+
+/-- The operators `K a ⊗ₖ 1` of a complete family of Kraus operators form a complete family. -/
+theorem sum_conjTranspose_kronecker_one_mul_self [DecidableEq A] [Fintype α]
+    {K : (a : α) → Matrix (B a) A ℂ}
+    (hK : ∑ a, (K a)ᴴ * K a = 1) :
+    ∑ a, (K a ⊗ₖ (1 : Matrix R R ℂ))ᴴ * (K a ⊗ₖ (1 : Matrix R R ℂ)) = 1 := by
+  rw [← Matrix.one_kronecker_one, ← hK]
+  ext ⟨a, r⟩ ⟨a', s⟩
+  simp only [Matrix.conjTranspose_kronecker, Matrix.conjTranspose_one, ← Matrix.mul_kronecker_mul,
+    Matrix.mul_one, Matrix.sum_apply, kronecker_apply, Finset.sum_mul]
+
+/-- Framing a Kraus measurement by an ancilla gives the Kraus measurement with operators
+`K a ⊗ₖ 1`. -/
+theorem frame_ofKraus [Fintype A] [DecidableEq A] [Fintype α]
+    (K : (a : α) → Matrix (B a) A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1) :
+    (ofKraus K hK).frame R =
+      ofKraus (fun a ↦ K a ⊗ₖ (1 : Matrix R R ℂ))
+        (sum_conjTranspose_kronecker_one_mul_self R hK) :=
+  DSubInstrument.ext <| funext fun a ↦ by
+    rw [branch_frame_apply, branch_ofKraus_apply, branch_ofKraus_apply, MatrixMap.amplify_conj]
+
+end DSubInstrument
 
 end Quantum
