@@ -53,6 +53,11 @@ branch family is the trace after the total map (`Quantum.SubInstrument.familyTra
 * `Quantum.DSubInstrument.Lossless`: the trace functional is the trace.
 * `Quantum.SubInstrument.toD`, `Quantum.DSubInstrument.toSubInstrument`,
   `Quantum.SubInstrument.equivD`: the constant-codomain case.
+
+`Quantum.DSubInstrument.exists_kraus_branch` gives a finite Kraus representation for each fixed
+outcome: `branch i ρ = ∑ k, K k * ρ * (K k)†`, with `K k : Matrix (B i) A ℂ` and `k : B i × A`.
+The outcome type is unrestricted. This branchwise theorem does not assert a joint finite
+environment or a Kraus-path theorem for dependent sequencing.
 -/
 
 public section

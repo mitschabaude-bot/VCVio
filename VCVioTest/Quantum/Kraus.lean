@@ -23,6 +23,9 @@ On a system with an arbitrary finite basis `A`:
 * the computational-basis measurement, as a subinstrument, has Kraus operators for all branches
   at once satisfying the completeness relation, and measuring twice has the path operators
   `single b b 1 * single a a 1`.
+
+Explicit calculations also check a complex rectangular Choi matrix, direct Stinespring recovery
+of qubit dephasing, and a noncommuting postselection/bit-flip path.
 -/
 
 public section
@@ -226,7 +229,7 @@ theorem conjTranspose_bitFlip_mul : bitFlipᴴ * bitFlip = 1 := by
   fin_cases i <;> fin_cases j <;> simp [bitFlip, Matrix.mul_apply]
 
 /-- The single-outcome bit-flip instrument. -/
-noncomputable def flipInstrument : SubInstrument (Fin 2) (Fin 2) Unit :=
+noncomputable def bitFlipInstrument : SubInstrument (Fin 2) (Fin 2) Unit :=
   SubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
 
 /-- Postselection on the zero outcome of a computational-basis measurement. -/
@@ -238,19 +241,19 @@ noncomputable def postselectZero : SubInstrument (Fin 2) (Fin 2) Unit :=
 -- The unique path has XP₀ = [[0, 0], [1, 0]], while P₀X = [[0, 1], [0, 0]].
 /-- Postselection followed by bit flip has the path operator `X * P₀`. -/
 theorem postselect_flip_path :
-    (postselectZero.bind fun _ ↦ flipInstrument).branch () =
+    (postselectZero.bind fun _ ↦ bitFlipInstrument).branch () =
       MatrixMap.conj (bitFlip * Matrix.single 0 0 1) := by
-  have h := SubInstrument.branch_bind_eq_sum_conj_mul postselectZero (fun _ ↦ flipInstrument)
+  have h := SubInstrument.branch_bind_eq_sum_conj_mul postselectZero (fun _ ↦ bitFlipInstrument)
     (K := fun _ _ : Unit ↦ Matrix.single 0 0 (1 : ℂ))
     (L := fun _ _ _ : Unit ↦ bitFlip)
-    (fun _ ↦ by simp [postselectZero]) (fun _ _ ↦ by simp [flipInstrument]) ()
+    (fun _ ↦ by simp [postselectZero]) (fun _ _ ↦ by simp [bitFlipInstrument]) ()
   simpa using h
 
 -- On input P₀, the path XP₀ yields P₁ = [[0, 0], [0, 1]].
 -- Reversing the path product to P₀X yields the zero matrix on the same input.
 /-- The noncommuting path sends the zero basis state to the one basis state. -/
 example :
-    (postselectZero.bind fun _ ↦ flipInstrument).branch () (Matrix.single 0 0 1) =
+    (postselectZero.bind fun _ ↦ bitFlipInstrument).branch () (Matrix.single 0 0 1) =
       Matrix.single 1 1 1 := by
   rw [postselect_flip_path]
   ext i j

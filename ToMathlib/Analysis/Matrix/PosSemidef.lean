@@ -11,9 +11,11 @@ public import Mathlib.Analysis.Matrix.Order
 /-!
 # Positive semidefinite matrices and the trace pairing
 
-The real trace pairing of positive semidefinite complex matrices is nonnegative. Among
-Hermitian matrices, nonnegativity against every positive semidefinite matrix characterizes
-positive semidefiniteness.
+For finite complex matrices, the pairing `Re tr (P * Q)` is nonnegative when `P` and `Q` are
+positive semidefinite (`Matrix.PosSemidef.trace_mul_re_nonneg`). Conversely, a Hermitian matrix
+`N` is positive semidefinite iff `Re tr (N * Q) ≥ 0` for every positive semidefinite `Q`
+(`Matrix.posSemidef_iff_forall_trace_mul_re_nonneg`). The Hermitian hypothesis is essential:
+the real trace pairing against Hermitian matrices cannot detect a skew-Hermitian part.
 -/
 
 public section
@@ -60,4 +62,3 @@ theorem posSemidef_iff_forall_trace_mul_re_nonneg {N : Matrix n n ℂ} :
     fun h ↦ h.1.posSemidef_of_trace_mul_re_nonneg h.2⟩
 
 end Matrix
-

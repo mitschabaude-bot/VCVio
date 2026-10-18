@@ -15,8 +15,9 @@ This file proves the finite-dimensional representation theorems for completely p
 `Φ : M_A → M_B`, where `M_A = Matrix A A ℂ` for a finite basis `A`. They are three descriptions of
 the same map, each useful in a different argument:
 
-* **Choi matrix.** One matrix on `B × A` that determines `Φ`. `Φ` is completely positive exactly
-  when it is positive semidefinite, which turns complete positivity into a single matrix condition.
+* **Choi matrix.** One matrix `choi Φ` on `B × A` that determines `Φ`. The map `Φ` is completely
+  positive exactly when `choi Φ` is positive semidefinite, so complete positivity reduces to one
+  matrix condition.
 * **Kraus operators.** Operators `K i : Matrix B A ℂ`, finitely many, with
   `Φ ρ = ∑ i, K i * ρ * (K i)†`. `Φ` is trace preserving exactly when `∑ i, (K i)† * K i = 1`,
   and trace nonincreasing exactly when `∑ i, (K i)† * K i ≤ 1`.
@@ -33,8 +34,8 @@ matrix is output first and unnormalized:
 `choi Φ = ∑ a a', Φ (E a a') ⊗ E a a'`, equivalently `choi Φ = (Φ ⊗ id_A) (|Ω⟩⟨Ω|)`,
 
 where `|Ω⟩ = ∑ a, |a⟩ ⊗ |a⟩` is not divided by `√|A|`. This is the operator `J(Φ)` of Watrous,
-*The Theory of Quantum Information*, equations (2.64)–(2.65), p. 78. The Stinespring operator puts
-the environment on the right: `S ψ = ∑ i, (K i ψ) ⊗ |i⟩`.
+equations (2.64)–(2.65), printed p. 78 / full-book PDF p. 86 (see References below). The
+Stinespring operator puts the environment on the right: `S ψ = ∑ i, (K i ψ) ⊗ |i⟩`.
 
 ## How the proofs go
 
@@ -48,13 +49,16 @@ using self-duality of the positive semidefinite cone. Stacking the Kraus operato
 
 ## Why programs need this
 
-A branch of a quantum program is a completely positive map, but pure-state arguments, such as the
-hybrid bound of `VCVio.Quantum.Pure.Norm`, need operators acting on vectors. Kraus decompositions
-supply them: a branch becomes a sum over Kraus indices, each index sending `ψ` to the vector
-`K i ψ`. For two successive operations the operators multiply along paths
-(`Quantum.SubInstrument.branch_bind_eq_sum_conj_mul`). Paths are classical alternatives: their
-output matrices add, not their vectors. Refining a whole program into Kraus paths is a separate
-result, not in this file.
+A subinstrument branch is a completely positive map on density matrices. Pure-state hybrid
+arguments instead use operators on vectors. A Kraus representation connects these descriptions:
+on input `|ψ⟩⟨ψ|`, the branch outputs `∑ i, |K i ψ⟩⟨K i ψ|`. Retaining the index `i` describes
+each component by the unnormalized vector `K i ψ`; forgetting it adds the output matrices.
+
+For two successive subinstruments with fixed output systems and finitely many intermediate
+outcomes, `Quantum.SubInstrument.branch_bind_eq_sum_conj_mul` gives path operators
+`L a b j * K a i`. The rightmost operator acts first. Different paths contribute matrices, not
+amplitudes, so their vectors are not added coherently. This is a two-stage identity; this file
+does not construct a whole-program Kraus refinement or prove its coarse-graining law.
 
 ## Main definitions
 
@@ -86,24 +90,24 @@ result, not in this file.
 
 ## Not covered
 
-* **Minimality.** The environment `B × A` and the `|A| * |B|` Kraus operators are sufficient, not
-  minimal; the Kraus rank is not defined.
+* **Minimality.** The environment `B × A` and the `|A| * |B|` Kraus operators are sufficient,
+  possibly nonminimal; the Kraus rank is not defined.
 * **Infinitely many outcomes.** Each branch of an instrument with infinitely many outcomes has Kraus
   operators (`Quantum.MatrixMap.IsCPTNIFamily.exists_kraus`), but one Stinespring operator for all
-  branches would map into the infinite-dimensional space `ℓ²(outcomes) ⊗ ℂ^B ⊗ ℂ^(B × A)`, and is
+  branches would map into the infinite-dimensional space `ℂ^B ⊗ ℓ²(outcomes × (B × A))`, and is
   not built here.
 
 ## References
 
-* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018: Choi
-  representation, equations (2.64)–(2.65), p. 78; Stinespring representation, equation (2.71),
-  p. 79; Theorem 2.22 (complete positivity, Choi positivity, Kraus and Stinespring forms), p. 82;
-  Theorem 2.26 (trace preservation), p. 87; Corollary 2.27 (isometric Stinespring form of a
-  channel), p. 89.
-* M.-D. Choi, *Completely positive linear maps on complex matrices*, Linear Algebra Appl. 10 (1975),
-  285–290.
-* K. Kraus, *States, Effects, and Operations*, Lecture Notes in Physics 190, Springer, 1983.
-* W. F. Stinespring, *Positive functions on C⋆-algebras*, Proc. Amer. Math. Soc. 6 (1955), 211–216.
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018,
+  [full-book PDF](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=86). PDF locators below are
+  one-based pages in this full-book PDF, not the separate chapter PDF: Choi representation,
+  equations (2.64)–(2.65), printed p. 78 / PDF p. 86; Stinespring representation, equation (2.71),
+  printed p. 79 / PDF p. 87; Theorem 2.22 (complete positivity, Choi positivity, Kraus and
+  Stinespring forms), printed p. 82 / PDF p. 90; Theorem 2.26 (trace preservation),
+  printed p. 87 / PDF p. 95; Corollary 2.27 (isometric Stinespring form of a channel),
+  printed p. 89 / PDF p. 97. Theorem 2.22 assumes a nonzero map; the results here also cover the
+  zero map and do not assert the theorem's rank-minimal clauses.
 -/
 
 public section
@@ -124,7 +128,8 @@ section Choi
 /-- The Choi matrix of `Φ : M_A → M_B`, on `B × A` (output first):
 `choi Φ (b, a) (b', a') = Φ (single a a' 1) b b'`. For finite `A` this is
 `∑ a a', Φ (single a a' 1) ⊗ single a a' 1`, which is `(Φ ⊗ id_A) (|Ω⟩⟨Ω|)` for the unnormalized
-`|Ω⟩ = ∑ a, |a⟩ ⊗ |a⟩` (Watrous, *The Theory of Quantum Information*, equation (2.65), p. 78). -/
+`|Ω⟩ = ∑ a, |a⟩ ⊗ |a⟩` (Watrous, equation (2.65), printed p. 78 / full-book PDF p. 86;
+see the module references). -/
 @[expose]
 def choi [DecidableEq A] (Φ : MatrixMap A B) : Matrix (B × A) (B × A) ℂ :=
   Matrix.of fun x y ↦ Φ (single x.2 y.2 1) x.1 y.1
@@ -302,8 +307,9 @@ theorem isCP_sum_conj [Fintype A] [Finite B] [Fintype ι] (K : ι → Matrix B A
   IsCP.sum _ fun i _ ↦ isCP_conj (K i)
 
 /-- A map is completely positive if and only if its Choi matrix is positive semidefinite
-(Watrous, *The Theory of Quantum Information*, Theorem 2.22, p. 82). Complete positivity quantifies
-over every reference system; the Choi matrix is a single test, with the reference system `A`. -/
+(Watrous, Theorem 2.22, printed p. 82 / full-book PDF p. 90; see the module references).
+Complete positivity quantifies over every reference system; the Choi matrix is a single test,
+with the reference system `A`. -/
 theorem isCP_iff_posSemidef_choi [Finite A] [Finite B] [DecidableEq A]
     {Φ : MatrixMap A B} : Φ.IsCP ↔ (choi Φ).PosSemidef := by
   refine ⟨IsCP.posSemidef_choi, fun h ↦ ?_⟩
@@ -316,9 +322,9 @@ theorem isCP_iff_posSemidef_choi [Finite A] [Finite B] [DecidableEq A]
   exact isCP_sum_conj _
 
 /-- **Choi's theorem.** A map `Φ : M_A → M_B` is completely positive if and only if
-`Φ ρ = ∑ i, K i * ρ * (K i)†` for finitely many operators `K i : Matrix B A ℂ` (Watrous, *The
-Theory of Quantum Information*, Theorem 2.22, p. 82). The index type may lie in any universe;
-`IsCP.exists_kraus` gives operators indexed by `B × A`. -/
+`Φ ρ = ∑ i, K i * ρ * (K i)†` for finitely many operators `K i : Matrix B A ℂ` (Watrous,
+Theorem 2.22, printed p. 82 / full-book PDF p. 90; see the module references). The index type
+may lie in any universe; `IsCP.exists_kraus` gives operators indexed by `B × A`. -/
 theorem isCP_iff_exists_kraus [Fintype A] [Finite B] {Φ : MatrixMap A B} :
     Φ.IsCP ↔ ∃ (κ : Type*) (_ : Fintype κ) (K : κ → Matrix B A ℂ), Φ = ∑ i, conj (K i) := by
   refine ⟨fun hΦ ↦ ?_, fun ⟨κ, _, K, hK⟩ ↦ hK ▸ isCP_sum_conj K⟩
@@ -328,7 +334,8 @@ theorem isCP_iff_exists_kraus [Fintype A] [Finite B] {Φ : MatrixMap A B} :
   exact ⟨ULift (Fin (Fintype.card (B × A))), inferInstance, K ∘ e,
     hK.trans (Fintype.sum_equiv e _ _ fun _ ↦ rfl).symm⟩
 
-/-- A chosen family of Kraus operators of a completely positive map, indexed by `B × A`. -/
+/-- A noncanonical, chosen family of Kraus operators of a completely positive map, indexed by
+`B × A`. -/
 noncomputable def krausOps [Fintype A] [Fintype B] (Φ : MatrixMap A B) (hΦ : Φ.IsCP) :
     B × A → Matrix B A ℂ :=
   Classical.choose hΦ.exists_kraus
@@ -361,8 +368,8 @@ theorem posSemidef_sum_conjTranspose_mul_self [Finite A] (K : ι → Matrix B A 
 variable [DecidableEq A]
 
 /-- The map `ρ ↦ ∑ i, K i * ρ * (K i)†` is trace preserving if and only if
-`∑ i, (K i)† * K i = 1`, the completeness relation; it is then a quantum channel (Watrous, *The
-Theory of Quantum Information*, Theorem 2.26, p. 87). -/
+`∑ i, (K i)† * K i = 1`, the completeness relation; it is then a quantum channel (Watrous,
+Theorem 2.26, printed p. 87 / full-book PDF p. 95; see the module references). -/
 theorem isTP_sum_conj_iff {K : ι → Matrix B A ℂ} :
     IsTP (∑ i, conj (K i)) ↔ ∑ i, (K i)ᴴ * K i = 1 := by
   refine ⟨fun h ↦ ?_, isTP_sum_conj⟩
@@ -374,9 +381,12 @@ theorem isTP_sum_conj_iff {K : ι → Matrix B A ℂ} :
     simpa [Matrix.trace_single_eq_same] using h1
   · simpa [Matrix.trace_single_eq_of_ne _ _ _ (Ne.symm ha), Matrix.one_apply_ne ha] using h1
 
-/-- The map `ρ ↦ ∑ i, K i * ρ * (K i)†` is trace nonincreasing if and only if
-`∑ i, (K i)† * K i ≤ 1`, stated as positive semidefiniteness of the difference. On a normalized
-state `ρ`, the probability that the operation fails is `tr ((1 - ∑ i, (K i)† * K i) * ρ)`. -/
+/-- The finite Kraus map `Φ ρ = ∑ i, K i * ρ * (K i)†` is trace nonincreasing on positive
+semidefinite inputs iff `∑ i, (K i)† * K i ≤ 1` in the Loewner order, expressed here as
+positive semidefiniteness of the difference. When these conditions hold, `Φ` is a quantum
+operation. On a positive semidefinite input with trace one, its failure probability is
+`1 - Re tr (Φ ρ) = Re tr ((1 - ∑ i, (K i)† * K i) * ρ)`.
+This is the inequality counterpart of the completeness relation in `isTP_sum_conj_iff`. -/
 theorem isTNI_sum_conj_iff {K : ι → Matrix B A ℂ} :
     IsTNI (∑ i, conj (K i)) ↔ (1 - ∑ i, (K i)ᴴ * K i).PosSemidef := by
   constructor
@@ -476,7 +486,7 @@ end Stinespring
 
 /-- **Stinespring form of a quantum operation.** A completely positive trace-nonincreasing map
 `Φ : M_A → M_B` is `ρ ↦ tr_E (S ρ S†)` for a contraction `S : ℂ^A → ℂ^B ⊗ ℂ^E` (`S† S ≤ 1`), with
-environment basis `E = B × A` on the right. The environment is large enough, not minimal. The
+environment basis `E = B × A` on the right: a sufficient, possibly nonminimal environment. The
 trace-preserving case is `exists_stinespring_of_isTP`. -/
 theorem IsCP.exists_stinespring_of_isTNI [Fintype A] [Fintype B] [DecidableEq A]
     {Φ : MatrixMap A B} (hΦ : Φ.IsCP) (htni : Φ.IsTNI) :
@@ -488,8 +498,9 @@ theorem IsCP.exists_stinespring_of_isTNI [Fintype A] [Fintype B] [DecidableEq A]
 
 /-- **Stinespring form of a quantum channel.** A completely positive trace-preserving map
 `Φ : M_A → M_B` is `ρ ↦ tr_E (S ρ S†)` for an isometry `S : ℂ^A → ℂ^B ⊗ ℂ^E` (`S† S = 1`), with
-environment basis `E = B × A` on the right (Watrous, *The Theory of Quantum Information*,
-Corollary 2.27, p. 89). The environment is large enough, not minimal. -/
+environment basis `E = B × A` on the right (Watrous, Corollary 2.27,
+printed p. 89 / full-book PDF p. 97; see the module references). This is a sufficient, possibly
+nonminimal environment. -/
 theorem IsCP.exists_stinespring_of_isTP [Fintype A] [Fintype B] [DecidableEq A]
     {Φ : MatrixMap A B} (hΦ : Φ.IsCP) (htp : Φ.IsTP) :
     ∃ S : Matrix (B × (B × A)) A ℂ, Φ = traceRight B (B × A) ∘ₗ conj S ∧ Sᴴ * S = 1 := by
@@ -501,7 +512,8 @@ theorem IsCP.exists_stinespring_of_isTP [Fintype A] [Fintype B] [DecidableEq A]
 
 namespace IsCPTNIFamily
 
-/-- Every member of a completely positive trace-nonincreasing family is a sum of Kraus maps. -/
+/-- For each fixed member `i` of a completely positive trace-nonincreasing family, `Φ i` is a
+sum of Kraus maps. -/
 theorem exists_kraus [Fintype A] {B : ι → Type*} [∀ i, Fintype (B i)]
     {Φ : (i : ι) → MatrixMap A (B i)} (h : IsCPTNIFamily Φ) (i : ι) :
     ∃ K : B i × A → Matrix (B i) A ℂ, Φ i = ∑ k, conj (K k) :=
