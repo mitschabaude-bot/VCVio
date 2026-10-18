@@ -60,7 +60,7 @@ noncomputable def measureZ : SubInstrument (Fin 2) (Fin 2) (Fin 2) :=
 
 /-- The computational-basis measurement is lossless. -/
 theorem lossless_measureZ : measureZ.Lossless :=
-  SubInstrument.lossless_ofKraus _ _
+  DSubInstrument.lossless_ofKraus _ _
 
 /-- Framing the measurement by a three-level ancilla keeps it lossless. -/
 example : (measureZ.frame (Fin 3)).Lossless :=
@@ -73,7 +73,7 @@ example (a b : Fin 2) (h : a ≠ b) :
       let y ← measureZ
       pure (x, y) : SubInstrument (Fin 2) (Fin 2) (Fin 2 × Fin 2)).branch (a, b) = 0 := by
   fin_cases a <;> fin_cases b <;>
-    simp [measureZ, SubInstrument.branch_bind_apply_univ, Fin.sum_univ_two,
+    simp [measureZ, DSubInstrument.branch_bind_apply_univ, Fin.sum_univ_two,
       SubInstrument.branch_pure, Pi.single_apply, ← MatrixMap.conj_mul, proj] at h ⊢
 
 /-- The density matrix of `|+⟩ = (|0⟩ + |1⟩) / √2`: all four entries are `1 / 2`. Measuring it
@@ -97,7 +97,7 @@ example (a : Fin 2) : (measureZ.branch a plus.matrix).trace = 1 / 2 := by
 
 /-- On `|+⟩⟨+|`, the outcome measure gives each outcome mass `1 / 2`. -/
 example (a : Fin 2) : measureZ.outcomeMeasure plus {a} = ENNReal.ofReal (1 / 2) := by
-  rw [SubInstrument.outcomeMeasure_apply_singleton]
+  rw [DSubInstrument.outcomeMeasure_apply_singleton]
   congr 1
   fin_cases a <;> simp [measureZ, proj, plus, Matrix.trace]
 
@@ -147,7 +147,7 @@ noncomputable def flipGate : SubInstrument (Fin 2) (Fin 2) Unit :=
 /-- Applying `S` then `X` to `|+⟩` gives `½ [[1,i],[-i,1]]`, the state of `(i,1)/√2`. -/
 example : (phaseGate.bind fun _ ↦ flipGate).branch () plus.matrix =
     !![1 / 2, Complex.I / 2; -Complex.I / 2, 1 / 2] := by
-  rw [SubInstrument.branch_bind_apply_univ]
+  rw [DSubInstrument.branch_bind_apply_univ]
   simp only [Fintype.sum_unique, LinearMap.comp_apply]
   change flipGate.branch () (phaseGate.branch () plus.matrix) = _
   rw [phaseGate_plus]
@@ -159,7 +159,7 @@ example : (phaseGate.bind fun _ ↦ flipGate).branch () plus.matrix =
 This differs from the reverse order, so the bind tests detect reversed composition. -/
 example : (flipGate.bind fun _ ↦ phaseGate).branch () plus.matrix =
     !![1 / 2, -Complex.I / 2; Complex.I / 2, 1 / 2] := by
-  rw [SubInstrument.branch_bind_apply_univ]
+  rw [DSubInstrument.branch_bind_apply_univ]
   simp only [Fintype.sum_unique, LinearMap.comp_apply]
   have h : flipGate.branch () plus.matrix = plus.matrix := by
     ext i j
@@ -202,7 +202,7 @@ theorem frame_measureZ_bell (a : Fin 2) :
 probability `½`. -/
 example (a : Fin 2) :
     (measureZ.frame (Fin 2)).outcomeMeasure bell {a} = ENNReal.ofReal (1 / 2) := by
-  rw [SubInstrument.outcomeMeasure_apply_singleton, frame_measureZ_bell]
+  rw [DSubInstrument.outcomeMeasure_apply_singleton, frame_measureZ_bell]
   fin_cases a <;> norm_num [Matrix.trace, Fintype.sum_prod_type, Fin.sum_univ_two]
 
 /-- Flipping one Bell qubit gives `( |01⟩ + |10⟩ ) / √2`. Measuring the first factor then
@@ -221,7 +221,7 @@ The input is the unnormalized zero branch on `|+⟩`; its missing half is not re
 theorem measureZ_post_zero_outcomeMeasure :
     measureZ.outcomeMeasure (measureZ.post plus 0) =
       ENNReal.ofReal (1 / 2) • Measure.dirac 0 := by
-  rw [SubInstrument.outcomeMeasure_eq_sum_univ, Fin.sum_univ_two]
+  rw [DSubInstrument.outcomeMeasure_eq_sum_univ, Fin.sum_univ_two]
   simp [measureZ, proj, plus, Matrix.trace]
 
 /-- The total mass after remeasurement is exactly `½`, strictly less than one. -/
@@ -297,28 +297,44 @@ example : (measureKeep.bind remeasure).Lossless :=
 example : (DSubInstrument.ret keepReg 0).bind remeasure = measureKeep :=
   DSubInstrument.ret_bind _ _
 
-/-! ## The constant-codomain equivalence -/
+/-! ## The constant-codomain specialization -/
 
-/-- The computational-basis measurement as a dependent subinstrument is lossless. -/
-example : (SubInstrument.toD measureZ).Lossless :=
-  SubInstrument.lossless_toD_iff.mpr lossless_measureZ
+/-- The computational-basis measurement is directly a lossless dependent subinstrument. -/
+example : (measureZ : DSubInstrument (Fin 2) (Fin 2) (fun _ ↦ Fin 2)).Lossless :=
+  lossless_measureZ
 
-/-- Transporting the measurement along the equivalence and back gives the measurement. -/
-example : SubInstrument.equivD.symm (SubInstrument.equivD measureZ) = measureZ :=
-  SubInstrument.equivD.symm_apply_apply _
+/-- A dependent unit law rewrites a constant-codomain subinstrument directly. -/
+example : measureZ.bind (DSubInstrument.ret (fun _ ↦ Fin 2)) = measureZ := by
+  rw [DSubInstrument.bind_ret]
 
-/-- The measurement as a dependent subinstrument is the dependent Kraus measurement. -/
-example : SubInstrument.toD measureZ =
+/-- The constant-codomain measurement is definitionally the dependent Kraus measurement. -/
+example : measureZ =
     DSubInstrument.ofKraus (B := fun _ ↦ Fin 2) proj sum_conjTranspose_proj_mul_proj :=
-  SubInstrument.toD_ofKraus _ _
+  rfl
 
-/-- On `|+⟩⟨+|`, the outcome measure of the transported measurement is that of the measurement, so
-each outcome has mass `1 / 2`. -/
+/-- Direct dependent observation gives each computational-basis outcome mass one half. -/
 example (a : Fin 2) :
-    (SubInstrument.toD measureZ).outcomeMeasure plus {a} = ENNReal.ofReal (1 / 2) := by
-  rw [SubInstrument.outcomeMeasure_toD, SubInstrument.outcomeMeasure_apply_singleton]
+    (measureZ : DSubInstrument (Fin 2) (Fin 2) (fun _ ↦ Fin 2)).outcomeMeasure plus {a} =
+      ENNReal.ofReal (1 / 2) := by
+  rw [DSubInstrument.outcomeMeasure_apply_singleton]
   congr 1
   fin_cases a <;> simp [measureZ, proj, plus, Matrix.trace]
+
+/-- The finite-sum constructor preserves branches and their trace-nonincreasing bound. -/
+example : SubInstrument.ofIsTNISum measureZ.branch measureZ.isCP_branch measureZ.isTNI_sum =
+    measureZ := by
+  ext
+  rfl
+
+/-- Losslessness of the measurement also gives trace preservation of its total map. -/
+example : measureZ.total.IsTP :=
+  (SubInstrument.lossless_iff_isTP_total measureZ).mp lossless_measureZ
+
+/-- Do notation on a fixed register sequences quantum computations with the usual unit law. -/
+example : (do
+    let a ← measureZ
+    pure a : SubInstrument (Fin 2) (Fin 2) (Fin 2)) = measureZ := by
+  simp
 
 /-! ## Outcomes on all of `ℕ` -/
 
@@ -358,9 +374,9 @@ the input trace. -/
 noncomputable def geometric : SubInstrument (Fin 2) (Fin 2) ℕ where
   branch n := (geomWeight n : ℂ) • LinearMap.id
   isCP_branch n := isCP_ofReal_smul_id (geomWeight_nonneg n)
-  isTNI_sum s ρ hρ := by
-    simp only [LinearMap.sum_apply, LinearMap.smul_apply, LinearMap.id_apply, Matrix.trace_sum,
-      Matrix.trace_smul, smul_eq_mul, Complex.re_sum, Complex.re_ofReal_mul]
+  trace_le s ρ hρ := by
+    simp only [LinearMap.smul_apply, LinearMap.id_apply, Matrix.trace_smul, smul_eq_mul,
+      Complex.re_ofReal_mul]
     rw [← Finset.sum_mul]
     exact mul_le_of_le_one_left hρ.trace_re_nonneg
       (sum_le_hasSum s (fun n _ ↦ geomWeight_nonneg n) hasSum_geomWeight)
@@ -383,14 +399,14 @@ example (n : ℕ) : geometric.branch n ≠ 0 := fun h ↦ by
 
 /-- The geometric instrument is lossless. -/
 theorem lossless_geometric : geometric.Lossless := fun ρ ↦ by
-  rw [SubInstrument.trace_total_apply]
+  rw [geometric.isCPTNIFamily.familyTrace_apply]
   simp only [geometric_branch_apply, Matrix.trace_smul, smul_eq_mul]
   rw [tsum_mul_right, ← Complex.ofReal_tsum, hasSum_geomWeight.tsum_eq, Complex.ofReal_one,
     one_mul]
 
 /-- On `|+⟩⟨+|`, the geometric instrument gives the outcome `n` mass `2^{-(n+1)}`. -/
 example (n : ℕ) : geometric.outcomeMeasure plus {n} = ENNReal.ofReal ((1 / 2) ^ (n + 1)) := by
-  rw [SubInstrument.outcomeMeasure_apply_singleton, geometric_branch_apply]
+  rw [DSubInstrument.outcomeMeasure_apply_singleton, geometric_branch_apply]
   congr 1
   simp only [Matrix.trace_smul, smul_eq_mul, Complex.re_ofReal_mul, geomWeight]
   simp [plus, Matrix.trace]
@@ -422,7 +438,7 @@ noncomputable def geometricReal : SubInstrument (Fin 2) (Fin 2) ℝ :=
 
 /-- Relabelling keeps the geometric instrument lossless on the reals. -/
 example : geometricReal.Lossless :=
-  lossless_geometric.map _
+  lossless_geometric.map (C := fun _ ↦ Fin 2)
 
 /-- Only countably many real outcomes carry a nonzero branch. -/
 example : (Function.support geometricReal.branch).Countable :=
@@ -439,12 +455,12 @@ example : geometricReal.branch (-1) = 0 := by
 
 /-- As a dependent subinstrument on the reals, the relabelled instrument also has countably many
 nonzero branches. -/
-example : {x : ℝ | (SubInstrument.toD geometricReal).branch x ≠ 0}.Countable :=
-  (SubInstrument.toD geometricReal).countable_support_branch
+example : {x : ℝ | geometricReal.branch x ≠ 0}.Countable :=
+  geometricReal.countable_support_branch
 
 /-- Relabelling the geometric instrument to a single outcome sums the infinite fibre `ℕ`: the
 branch at that outcome is the identity map. -/
-example : (geometric.map fun _ : ℕ ↦ ()).branch () = LinearMap.id := by
+example : (geometric.map (C := fun _ ↦ Fin 2) fun _ : ℕ ↦ ()).branch () = LinearMap.id := by
   refine LinearMap.ext fun ρ ↦ ?_
   have h : (fun _ : ℕ ↦ ()) ⁻¹' {()} = Set.univ := Set.eq_univ_of_forall fun _ ↦ rfl
   have hs : HasSum (fun n ↦ (geomWeight n : ℂ) • ρ) (((1 : ℝ) : ℂ) • ρ) :=
@@ -459,16 +475,16 @@ noncomputable def geometricULift : SubInstrument (Fin 2) (Fin 2) (ULift.{1} ℕ)
 
 /-- Relabelling into a higher universe keeps the instrument lossless. -/
 example : geometricULift.Lossless :=
-  lossless_geometric.map _
+  lossless_geometric.map (C := fun _ ↦ Fin 2)
 
 /-- The dependent geometric instrument with outcomes in `Type 1`, restricted back to `ℕ` along
 the bijection `ULift.up`, is lossless. -/
-example : ((SubInstrument.toD geometricULift).comap ULift.up ULift.up_injective).Lossless :=
-  (SubInstrument.lossless_toD_iff.mpr (lossless_geometric.map _)).comap ULift.up_bijective
+example : (geometricULift.comap ULift.up ULift.up_injective).Lossless :=
+  (lossless_geometric.map (C := fun _ ↦ Fin 2)).comap ULift.up_bijective
 
 /-- The dependent geometric instrument with outcomes in `Type 1` has countably many nonzero
 branches. -/
-example : {x : ULift.{1} ℕ | (SubInstrument.toD geometricULift).branch x ≠ 0}.Countable :=
-  (SubInstrument.toD geometricULift).countable_support_branch
+example : {x : ULift.{1} ℕ | geometricULift.branch x ≠ 0}.Countable :=
+  geometricULift.countable_support_branch
 
 end VCVioTest.QuantumBasic
