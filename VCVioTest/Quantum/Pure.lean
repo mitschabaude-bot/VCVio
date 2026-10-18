@@ -33,6 +33,7 @@ namespace VCVioTest.QuantumPure
 def proj (i : Fin 2) : Matrix (Fin 2) (Fin 2) ℂ :=
   Matrix.single i i 1
 
+/-- The computational-basis projectors satisfy Kraus completeness. -/
 theorem sum_conjTranspose_proj_mul_proj : ∑ i, (proj i)ᴴ * proj i = 1 := by
   ext i j
   fin_cases i <;> fin_cases j <;>
@@ -65,14 +66,17 @@ theorem outcomeMeasure_measureZ_plus (a : Fin 2) :
 /-- The amplitude `1 / √2`. -/
 noncomputable def amp : ℂ := ((√2 : ℝ) : ℂ)⁻¹
 
+/-- The square of the real Hadamard amplitude is one half. -/
 theorem amp_mul_amp : amp * amp = 1 / 2 := by
   rw [amp, ← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (by norm_num)]
   norm_num
 
+/-- The Hadamard amplitude is fixed by complex conjugation. -/
 theorem conj_amp : (starRingEnd ℂ) amp = amp := by
   rw [amp, ← Complex.ofReal_inv]
   exact Complex.conj_ofReal _
 
+/-- The squared norm of the Hadamard amplitude is one half. -/
 theorem norm_amp_sq : ‖amp‖ ^ 2 = 1 / 2 := by
   rw [sq, ← norm_mul, amp_mul_amp]
   norm_num
@@ -81,6 +85,7 @@ theorem norm_amp_sq : ‖amp‖ ^ 2 = 1 / 2 := by
 noncomputable def hadamard : Matrix (Fin 2) (Fin 2) ℂ :=
   !![amp, amp; amp, -amp]
 
+/-- The Hadamard matrix is unitary. -/
 theorem hadamard_mem_unitaryGroup : hadamard ∈ Matrix.unitaryGroup (Fin 2) ℂ := by
   rw [Matrix.mem_unitaryGroup_iff']
   ext i j
@@ -95,6 +100,7 @@ noncomputable def hadamardGate : Matrix.unitaryGroup (Fin 2) ℂ :=
 noncomputable def ket0 : EuclideanSpace ℂ (Fin 2) :=
   EuclideanSpace.single 0 1
 
+/-- The computational-basis vector is subnormalized. -/
 theorem norm_ket0_le_one : ‖ket0‖ ≤ 1 := by
   simp [ket0]
 
@@ -167,6 +173,7 @@ theorem commutator_pauliX_pauliZ : ⁅pauliX, pauliZ⁆ = !![0, -2; 2, 0] := by
   fin_cases i <;> fin_cases j <;>
     simp [Ring.lie_def, pauliX, pauliZ] <;> norm_num
 
+/-- The Pauli Z matrix is a contraction. -/
 theorem norm_pauliZ_le_one : ‖pauliZ‖ ≤ 1 := by
   refine l2_opNorm_le_one_of_isometry ?_
   ext i j
