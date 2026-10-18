@@ -289,6 +289,130 @@ end ofKraus
 
 /-! ## Projective measurements -/
 
+section ofProjectiveFinset
+
+variable [DecidableEq A]
+
+/-- A finite complete family of star projections satisfies the Kraus completeness relation. -/
+theorem sum_conjTranspose_mul_self_of_isStarProjection_finset {P : α → Matrix A A ℂ}
+    (hP : ∀ a, IsStarProjection (P a)) (s : Finset α) (hsum : ∑ a ∈ s, P a = 1) :
+    ∑ a ∈ s, (P a)ᴴ * P a = 1 := by
+  convert hsum using 1
+  exact Finset.sum_congr rfl fun a _ ↦ by
+    rw [← Matrix.star_eq_conjTranspose, (hP a).isSelfAdjoint.star_eq,
+      (hP a).isIdempotentElem.eq]
+
+/-- The Lüders instrument of projections with arbitrary labels and finite support `s`.
+Completeness is the sum over `s`; all projections outside `s` must vanish. -/
+@[expose]
+noncomputable def ofProjectiveFinset (P : α → Matrix A A ℂ)
+    (hP : ∀ a, IsStarProjection (P a)) (s : Finset α) (hs : ∀ a ∉ s, P a = 0)
+    (hsum : ∑ a ∈ s, P a = 1) : SubInstrument A A α :=
+  have h : MatrixMap.IsCPTNIFamily fun a ↦ MatrixMap.conj (P a) :=
+    .of_forall_notMem s (fun a ha ↦ by rw [hs a ha, MatrixMap.conj_zero])
+      (fun a ↦ MatrixMap.isCP_conj (P a)) fun ρ _ ↦ by
+        simp_rw [MatrixMap.trace_conj_apply]
+        rw [← Complex.re_sum, ← Matrix.trace_sum, ← Finset.sum_mul,
+          sum_conjTranspose_mul_self_of_isStarProjection_finset hP s hsum, Matrix.one_mul]
+  { branch := fun a ↦ MatrixMap.conj (P a)
+    isCP_branch := h.isCP
+    isTNI_sum := h.isTNI_sum }
+
+variable (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a))
+    (s : Finset α) (hs : ∀ a ∉ s, P a = 0) (hsum : ∑ a ∈ s, P a = 1)
+
+/-- The branch at any label is conjugation by that label's projection. -/
+@[simp]
+theorem branch_ofProjectiveFinset_apply (a : α) :
+    (ofProjectiveFinset P hP s hs hsum).branch a = MatrixMap.conj (P a) :=
+  rfl
+
+/-- A complete finitely supported projective measurement preserves trace. -/
+theorem lossless_ofProjectiveFinset : (ofProjectiveFinset P hP s hs hsum).Lossless := by
+  rw [Lossless, total_eq_sum _ (s := s) (fun a ha ↦ by simp [hs a ha])]
+  intro ρ
+  simp_rw [LinearMap.sum_apply, Matrix.trace_sum, branch_ofProjectiveFinset_apply,
+    MatrixMap.trace_conj_apply]
+  rw [← Matrix.trace_sum, ← Finset.sum_mul,
+    sum_conjTranspose_mul_self_of_isStarProjection_finset hP s hsum, Matrix.one_mul]
+
+/-- A retained outcome projects the input vector, keeping its unnormalized branch weight. -/
+theorem post_ofProjectiveFinset_ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
+    (ofProjectiveFinset P hP s hs hsum).post (.ofVector ψ hψ) a =
+      .ofVector (P a •ᵥ ψ) ((norm_applyVec_le_of_isStarProjection (hP a) ψ).trans hψ) :=
+  SubState.ext <| conj_ketBra_self (P a) ψ
+
+/-- The outcome measure is the sum of Dirac measures weighted by squared projected norms. -/
+theorem outcomeMeasure_ofProjectiveFinset_ofVector [MeasurableSpace α]
+    (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
+    (ofProjectiveFinset P hP s hs hsum).outcomeMeasure (.ofVector ψ hψ) =
+      Measure.sum (fun a ↦ ENNReal.ofReal (‖P a •ᵥ ψ‖ ^ 2) • Measure.dirac a) := by
+  rw [outcomeMeasure_eq_sum]
+  simp_rw [branch_ofProjectiveFinset_apply, SubState.matrix_ofVector,
+    conj_ketBra_self, trace_re_ketBra_self]
+
+/-- Each measurable singleton has weight equal to its squared projected norm. -/
+theorem outcomeMeasure_ofProjectiveFinset_ofVector_singleton [MeasurableSpace α]
+    [MeasurableSingletonClass α] (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
+    (ofProjectiveFinset P hP s hs hsum).outcomeMeasure (.ofVector ψ hψ) {a} =
+      ENNReal.ofReal (‖P a •ᵥ ψ‖ ^ 2) := by
+  rw [outcomeMeasure_apply_singleton, branch_ofProjectiveFinset_apply,
+    SubState.matrix_ofVector, conj_ketBra_self, trace_re_ketBra_self]
+
+/-- Distinct projections in a complete finitely supported family multiply to zero. -/
+theorem mul_eq_zero_of_isStarProjection_finset {P : α → Matrix A A ℂ}
+    (hP : ∀ a, IsStarProjection (P a)) (s : Finset α) (hs : ∀ a ∉ s, P a = 0)
+    (hsum : ∑ a ∈ s, P a = 1) {a b : α} (hab : a ≠ b) : P a * P b = 0 := by
+  classical
+  by_cases ha : a ∈ s
+  · by_cases hb : b ∈ s
+    · apply Matrix.toEuclideanLin.injective
+      apply LinearMap.ext
+      intro ψ
+      have hnorm : ∑ i ∈ s, ‖P i •ᵥ (P b •ᵥ ψ)‖ ^ 2 = ‖P b •ᵥ ψ‖ ^ 2 := by
+        calc
+          _ = ∑ i ∈ s, (⟪P b •ᵥ ψ, P i •ᵥ P b •ᵥ ψ⟫_ℂ).re :=
+            Finset.sum_congr rfl fun i _ ↦ norm_sq_applyVec_of_isStarProjection (hP i) _
+          _ = _ := by
+            rw [← Complex.re_sum, ← inner_sum, ← sum_applyVec, hsum, one_applyVec,
+              re_inner_self]
+      have hle : ‖P a •ᵥ P b •ᵥ ψ‖ ^ 2 + ‖P b •ᵥ ψ‖ ^ 2 ≤ ‖P b •ᵥ ψ‖ ^ 2 := by
+        calc
+          _ = ∑ i ∈ ({a, b} : Finset α), ‖P i •ᵥ P b •ᵥ ψ‖ ^ 2 := by
+            rw [Finset.sum_pair hab, ← mul_applyVec (P b) (P b), (hP b).isIdempotentElem.eq]
+          _ ≤ ∑ i ∈ s, ‖P i •ᵥ P b •ᵥ ψ‖ ^ 2 :=
+            Finset.sum_le_sum_of_subset_of_nonneg (by simp [Finset.insert_subset_iff, ha, hb])
+              (fun _ _ _ ↦ sq_nonneg _)
+          _ = _ := hnorm
+      have hz : P a •ᵥ P b •ᵥ ψ = 0 := by
+        apply norm_eq_zero.mp
+        nlinarith [norm_nonneg (P a •ᵥ P b •ᵥ ψ)]
+      simpa only [mul_applyVec, map_zero, LinearMap.zero_apply] using hz
+    · rw [hs b hb, mul_zero]
+  · rw [hs a ha, zero_mul]
+
+/-- Repeating a projective outcome leaves its unnormalized post-state unchanged. -/
+theorem post_ofProjectiveFinset_post_self (ρ : SubState A) (a : α) :
+    (ofProjectiveFinset P hP s hs hsum).post
+      ((ofProjectiveFinset P hP s hs hsum).post ρ a) a =
+        (ofProjectiveFinset P hP s hs hsum).post ρ a := by
+  apply SubState.ext
+  simp only [matrix_post, branch_ofProjectiveFinset_apply]
+  rw [← LinearMap.comp_apply, ← MatrixMap.conj_mul, (hP a).isIdempotentElem.eq]
+
+/-- A different label has zero weight after a retained projective outcome. -/
+theorem outcomeMeasure_ofProjectiveFinset_post_of_ne [MeasurableSpace α]
+    [MeasurableSingletonClass α] (ρ : SubState A) {a b : α} (hab : b ≠ a) :
+    (ofProjectiveFinset P hP s hs hsum).outcomeMeasure
+      ((ofProjectiveFinset P hP s hs hsum).post ρ a) {b} = 0 := by
+  rw [outcomeMeasure_apply_singleton, matrix_post]
+  simp only [branch_ofProjectiveFinset_apply]
+  rw [← LinearMap.comp_apply, ← MatrixMap.conj_mul,
+    mul_eq_zero_of_isStarProjection_finset hP s hs hsum hab, MatrixMap.conj_zero]
+  simp
+
+end ofProjectiveFinset
+
 section ofProjective
 
 variable [Fintype α] [DecidableEq A]
@@ -306,14 +430,32 @@ sums to one: the Kraus measurement with operators `P a`. -/
 @[expose]
 noncomputable def ofProjective (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a))
     (hsum : ∑ a, P a = 1) : SubInstrument A A α :=
-  ofKraus P (sum_conjTranspose_mul_self_of_isStarProjection hP hsum)
+  ofProjectiveFinset P hP Finset.univ (fun a ha ↦ (ha (Finset.mem_univ a)).elim) hsum
 
 variable (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a)) (hsum : ∑ a, P a = 1)
 
 /-- A projective measurement is the Kraus measurement with its projections. -/
 theorem ofProjective_eq_ofKraus :
     ofProjective P hP hsum = ofKraus P (sum_conjTranspose_mul_self_of_isStarProjection hP hsum) :=
+  SubInstrument.ext rfl
+
+/-- The finite-label constructor is the arbitrary-label constructor supported on all labels. -/
+theorem ofProjective_eq_ofProjectiveFinset :
+    ofProjective P hP hsum =
+      ofProjectiveFinset P hP Finset.univ (fun a ha ↦ (ha (Finset.mem_univ a)).elim) hsum :=
   rfl
+
+include hP hsum in
+/-- Distinct projections in a finite complete family multiply to zero. -/
+theorem mul_eq_zero_of_isStarProjection {a b : α} (hab : a ≠ b) : P a * P b = 0 :=
+  mul_eq_zero_of_isStarProjection_finset hP Finset.univ
+    (fun a ha ↦ (ha (Finset.mem_univ a)).elim) hsum hab
+
+/-- Repeating the same outcome of a finite projective measurement preserves the post-state. -/
+theorem post_ofProjective_post_self (ρ : SubState A) (a : α) :
+    (ofProjective P hP hsum).post ((ofProjective P hP hsum).post ρ a) a =
+      (ofProjective P hP hsum).post ρ a :=
+  post_ofProjectiveFinset_post_self P hP Finset.univ _ hsum ρ a
 
 /-- The branch of a projective measurement at `a` is the Kraus map of `P a`. -/
 @[simp]
@@ -323,7 +465,7 @@ theorem branch_ofProjective_apply (a : α) :
 
 /-- A projective measurement is lossless. -/
 theorem lossless_ofProjective : (ofProjective P hP hsum).Lossless :=
-  lossless_ofKraus _ _
+  lossless_ofProjectiveFinset P hP Finset.univ _ hsum
 
 /-- After a projective measurement reports `a` on the pure substate of `ψ`, the substate is the
 pure substate of the projection `P a •ᵥ ψ`. -/
@@ -338,7 +480,7 @@ theorem outcomeMeasure_ofProjective_ofVector_singleton [MeasurableSpace α]
     [MeasurableSingletonClass α] (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
     (ofProjective P hP hsum).outcomeMeasure (.ofVector ψ hψ) {a} =
       ENNReal.ofReal (‖P a •ᵥ ψ‖ ^ 2) :=
-  outcomeMeasure_ofKraus_ofVector_singleton ..
+  outcomeMeasure_ofProjectiveFinset_ofVector_singleton ..
 
 /-- Born rule for a projective measurement, in expectation form: on the pure substate of `ψ`,
 outcome `a` has weight `⟪ψ, P a •ᵥ ψ⟫`. -/

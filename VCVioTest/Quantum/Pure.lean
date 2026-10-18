@@ -39,6 +39,49 @@ theorem sum_conjTranspose_proj_mul_proj : ∑ i, (proj i)ᴴ * proj i = 1 := by
   fin_cases i <;> fin_cases j <;>
     simp [proj, Matrix.sum_apply, Matrix.single_apply]
 
+/-- Each computational-basis projector is a self-adjoint idempotent. -/
+theorem isStarProjection_proj (i : Fin 2) : IsStarProjection (proj i) := by
+  constructor
+  · change proj i * proj i = proj i
+    ext j k
+    fin_cases i <;> fin_cases j <;> fin_cases k <;> simp [proj]
+  · change (proj i)ᴴ = proj i
+    simp [proj]
+
+/-- Computational-basis projections labelled by naturals, with support `{0, 1}`. -/
+def natProj (n : ℕ) : Matrix (Fin 2) (Fin 2) ℂ :=
+  if n = 0 then proj 0 else if n = 1 then proj 1 else 0
+
+/-- Every natural-labelled branch is a star projection, including the zero branches. -/
+theorem isStarProjection_natProj (n : ℕ) : IsStarProjection (natProj n) := by
+  unfold natProj
+  split_ifs <;> first | exact isStarProjection_proj _ | exact IsStarProjection.zero _
+
+/-- All natural-labelled projections outside `{0, 1}` vanish. -/
+theorem natProj_eq_zero (n : ℕ) (hn : n ∉ ({0, 1} : Finset ℕ)) : natProj n = 0 := by
+  simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hn
+  simp [natProj, hn.1, hn.2]
+
+/-- The two nonzero natural-labelled projections sum to the identity. -/
+theorem sum_natProj : ∑ n ∈ ({0, 1} : Finset ℕ), natProj n = 1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;> simp [natProj, proj]
+
+/-- A projective measurement with arbitrary natural-number outcome labels. -/
+noncomputable def measureNat : SubInstrument (Fin 2) (Fin 2) ℕ :=
+  SubInstrument.ofProjectiveFinset natProj isStarProjection_natProj {0, 1}
+    natProj_eq_zero sum_natProj
+
+/-- Both projections in the natural-labelled support are nonzero. -/
+example : natProj 0 ≠ 0 ∧ natProj 1 ≠ 0 := by
+  constructor
+  · intro h
+    have := congrArg (fun M ↦ M 0 0) h
+    simp [natProj, proj] at this
+  · intro h
+    have := congrArg (fun M ↦ M 1 1) h
+    simp [natProj, proj] at this
+
 /-- Measurement of a qubit in the computational basis. -/
 noncomputable def measureZ : SubInstrument (Fin 2) (Fin 2) (Fin 2) :=
   SubInstrument.ofKraus proj sum_conjTranspose_proj_mul_proj
@@ -127,6 +170,20 @@ example (a : Fin 2) :
   rw [hadamardThenMeasure, SubInstrument.outcomeMeasure_ofUnitary_bind_ofVector, measureZ,
     SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
   exact congrArg ENNReal.ofReal (norm_sq_proj_applyVec_hadamard_applyVec_ket0 a)
+
+/-- Natural labels give weights one half at `0` and `1`, and zero everywhere else. -/
+example (n : ℕ) :
+    measureNat.outcomeMeasure
+      (.ofVector (hadamard •ᵥ ket0)
+        (norm_applyVec_le_one
+          (l2_opNorm_le_one_of_mem_unitaryGroup hadamard_mem_unitaryGroup) norm_ket0_le_one))
+      {n} = if n = 0 ∨ n = 1 then ENNReal.ofReal (1 / 2) else 0 := by
+  rw [measureNat, SubInstrument.outcomeMeasure_ofProjectiveFinset_ofVector_singleton]
+  by_cases h0 : n = 0
+  · simp [natProj, h0, norm_sq_proj_applyVec_hadamard_applyVec_ket0]
+  · by_cases h1 : n = 1
+    · simp [natProj, h1, norm_sq_proj_applyVec_hadamard_applyVec_ket0]
+    · simp [natProj, h0, h1]
 
 /-- The pure substate of `H •ᵥ |0⟩` is the density matrix `|+⟩⟨+|`. -/
 theorem ofVector_hadamard_applyVec_ket0 (h : ‖hadamard •ᵥ ket0‖ ≤ 1) :
