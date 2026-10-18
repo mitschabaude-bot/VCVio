@@ -214,6 +214,52 @@ example (ψ φ : EuclideanSpace ℂ (Fin 2)) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ
   SubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul proj
     sum_conjTranspose_proj_mul_proj ψ φ hψ hφ s
 
+/-! ## Complex phase and interference -/
+
+/-- The phase gate `S = diag(1, i)`. -/
+def phaseGate : Matrix (Fin 2) (Fin 2) ℂ :=
+  !![1, 0; 0, Complex.I]
+
+/-- Applying `S` to `|+⟩` gives amplitudes `(1, i) / √2`. -/
+theorem phaseGate_applyVec_plus :
+    phaseGate •ᵥ hadamard •ᵥ ket0 = toLp 2 ![amp, Complex.I * amp] := by
+  rw [hadamard_applyVec_ket0]
+  ext i
+  fin_cases i <;> simp [phaseGate, mul_comm]
+
+/-- The vector `S|+⟩` is normalized. -/
+theorem norm_phaseGate_applyVec_plus : ‖phaseGate •ᵥ hadamard •ᵥ ket0‖ = 1 := by
+  have hsq : ‖phaseGate •ᵥ hadamard •ᵥ ket0‖ ^ 2 = 1 := by
+    rw [phaseGate_applyVec_plus, EuclideanSpace.norm_sq_eq]
+    norm_num [Fin.sum_univ_two, norm_amp_sq]
+  nlinarith [norm_nonneg (phaseGate •ᵥ hadamard •ᵥ ket0)]
+
+/-- A Hadamard after `S|+⟩` gives amplitudes `(1 + i, 1 - i) / 2`. -/
+theorem hadamard_applyVec_phaseGate_plus :
+    hadamard •ᵥ phaseGate •ᵥ hadamard •ᵥ ket0 =
+      toLp 2 ![(1 + Complex.I) / 2, (1 - Complex.I) / 2] := by
+  rw [phaseGate_applyVec_plus]
+  ext i
+  fin_cases i <;> simp [hadamard]
+  · linear_combination (1 + Complex.I) * amp_mul_amp
+  · linear_combination (1 - Complex.I) * amp_mul_amp
+
+/-- Measuring in the `X` basis is a Hadamard followed by computational-basis measurement. -/
+noncomputable def measureX : SubInstrument (Fin 2) (Fin 2) (Fin 2) :=
+  SubInstrument.ofUnitary hadamardGate >>= fun _ ↦ measureZ
+
+/-- The Born weights of an `X`-basis measurement on `S|+⟩` are both one half. -/
+theorem outcomeMeasure_measureX_phaseGate_plus (a : Fin 2) :
+    measureX.outcomeMeasure
+      (.ofVector (phaseGate •ᵥ hadamard •ᵥ ket0) norm_phaseGate_applyVec_plus.le) {a} =
+        ENNReal.ofReal (1 / 2) := by
+  rw [measureX, SubInstrument.outcomeMeasure_ofUnitary_bind_ofVector, measureZ,
+    SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton]
+  change ENNReal.ofReal (‖proj a •ᵥ hadamard •ᵥ phaseGate •ᵥ hadamard •ᵥ ket0‖ ^ 2) = _
+  rw [hadamard_applyVec_phaseGate_plus, EuclideanSpace.norm_sq_eq, Fin.sum_univ_two]
+  fin_cases a <;> norm_num [proj, Matrix.mulVec, dotProduct, Matrix.single_apply,
+    div_pow, Complex.sq_norm, Complex.normSq_apply]
+
 /-! ## Commutators of Pauli matrices -/
 
 /-- The Pauli matrix `X`. -/
@@ -275,6 +321,59 @@ example (χ : EuclideanSpace ℂ (Fin 2)) (h : ‖ket0 ⊗ᵥ χ‖ ≤ 1) :
         (norm_applyVec_tensorVec_le_one
           (l2_opNorm_le_one_of_mem_unitaryGroup hadamard_mem_unitaryGroup) ket0 χ h) :=
   SubInstrument.post_frame_ofContraction_ofVector_tensorVec ..
+
+/-! ## A Bell pair and local measurement -/
+
+/-- The basis vector `|1⟩`. -/
+noncomputable def ket1 : EuclideanSpace ℂ (Fin 2) :=
+  EuclideanSpace.single 1 1
+
+/-- The Bell vector `(|00⟩ + |11⟩) / √2`, expressed using tensor products. -/
+noncomputable def bell : EuclideanSpace ℂ (Fin 2 × Fin 2) :=
+  amp • (ket0 ⊗ᵥ ket0) + amp • (ket1 ⊗ᵥ ket1)
+
+/-- The Bell vector has norm one. -/
+theorem norm_bell : ‖bell‖ = 1 := by
+  have hsq : ‖bell‖ ^ 2 = 1 := by
+    rw [EuclideanSpace.norm_sq_eq]
+    norm_num [bell, ket0, ket1, Fintype.sum_prod_type, Fin.sum_univ_two, norm_amp_sq]
+  nlinarith [norm_nonneg bell]
+
+/-- Projecting the first half of a Bell pair selects the matching basis state in both halves. -/
+theorem proj_kronecker_one_applyVec_bell (a : Fin 2) :
+    (proj a ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ)) •ᵥ bell =
+      amp • (EuclideanSpace.single a 1 ⊗ᵥ EuclideanSpace.single a 1) := by
+  ext ⟨i, j⟩
+  fin_cases a <;> fin_cases i <;> fin_cases j <;>
+    simp [bell, ket0, ket1, proj, Matrix.mulVec, dotProduct, Fintype.sum_prod_type,
+      Matrix.single_apply, Matrix.one_apply]
+
+/-- Each local Bell branch has squared norm one half. -/
+theorem norm_sq_proj_kronecker_one_applyVec_bell (a : Fin 2) :
+    ‖(proj a ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ)) •ᵥ bell‖ ^ 2 = 1 / 2 := by
+  rw [proj_kronecker_one_applyVec_bell]
+  simp [norm_smul, norm_tensorVec, norm_amp_sq]
+
+/-- Measuring the first qubit of the Bell pair reports either bit with weight one half. -/
+theorem outcomeMeasure_frame_measureZ_bell (a : Fin 2) :
+    (measureZ.frame (Fin 2)).outcomeMeasure (.ofVector bell norm_bell.le) {a} =
+      ENNReal.ofReal (1 / 2) := by
+  rw [measureZ, SubInstrument.frame_ofKraus,
+    SubInstrument.outcomeMeasure_ofKraus_ofVector_singleton,
+    norm_sq_proj_kronecker_one_applyVec_bell]
+
+/-- The retained Bell branch is the unnormalized correlated vector `|aa⟩ / √2`. -/
+theorem post_frame_measureZ_bell (a : Fin 2) :
+    ∃ h, (measureZ.frame (Fin 2)).post (.ofVector bell norm_bell.le) a =
+      .ofVector (amp • (EuclideanSpace.single a 1 ⊗ᵥ EuclideanSpace.single a 1)) h := by
+  have h := SubInstrument.post_ofKraus_ofVector
+    (fun a ↦ proj a ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ))
+    (SubInstrument.sum_conjTranspose_kronecker_one_mul_self (Fin 2)
+      sum_conjTranspose_proj_mul_proj) bell norm_bell.le a
+  have hamp : ‖amp‖ ≤ 1 := by nlinarith [norm_amp_sq, norm_nonneg amp]
+  refine ⟨by simpa [norm_smul, norm_tensorVec] using hamp, SubState.ext ?_⟩
+  simpa only [measureZ, SubInstrument.frame_ofKraus, SubState.matrix_ofVector,
+    proj_kronecker_one_applyVec_bell] using congrArg SubState.matrix h
 
 /-! ## A measurement with infinitely many outcomes -/
 
