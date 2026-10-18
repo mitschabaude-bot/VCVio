@@ -10,14 +10,16 @@ public import VCVio.Quantum.SubInstrument
 /-!
 # Dependent subinstruments
 
-A dependent subinstrument from the system with basis `A`, with classical outcomes `i : ι`, has
-output system `B i` on outcome `i`: after a measurement the register may depend on the outcome,
+A dependent-output subinstrument from the system with basis `A`, with classical outcomes `i : ι`,
+has output system `B i` on outcome `i`: after a measurement the register may depend on the outcome,
 for example a qubit kept on one outcome and discarded on another. It is a family of completely
 positive maps `branch i : MatrixMap A (B i)` such that, on positive semidefinite inputs, the
 traces of the branches over every finite set of outcomes sum to at most the trace of the input.
 As for `Quantum.SubInstrument`, the family is summable rather than finitely supported, and no
 countability assumption is made on `ι`; only countably many branches are nonzero
-(`Quantum.DSubInstrument.countable_support_branch`).
+(`Quantum.DSubInstrument.countable_support_branch`). The finite-instrument reference is in the
+module doc of `VCVio.Quantum.SubInstrument`; outcome dependence, countable support and possible
+trace loss extend that finite textbook definition.
 
 The branches have different codomains, so they cannot be summed as maps. Trace nonincrease is
 stated through traces, and the trace functional `Quantum.MatrixMap.familyTrace`,
@@ -27,7 +29,8 @@ block-diagonal algebra `⊕ i, M_{B i}`. With infinitely many outcomes its outpu
 blocks with summable traces, and this file works with the families directly rather than with a
 completed direct sum. In either case there are no off-diagonal blocks between different
 outcomes: outcomes are classical alternatives and cannot interfere. In particular a dependent
-subinstrument is not a map into the matrix algebra on the disjoint union `Σ i, B i`.
+subinstrument is not an arbitrary map into the full matrix algebra on the disjoint union
+`Σ i, B i`.
 
 Sequencing is Kleisli composition of branch families (`Quantum.MatrixMap.familyBind`), with unit
 the single identity branch `Quantum.DSubInstrument.ret`. The unit and associativity laws are
@@ -238,7 +241,7 @@ theorem bind_assoc (p : DSubInstrument A ι B) (k : (i : ι) → DSubInstrument 
 
 /-- Reindex the outcomes of `p` along `f : ι → κ` when its output system on outcome `i` is
 `C (f i)`: outcome `i` is reported as `f i`, and the branches of outcomes with the same image are
-summed. -/
+summed. This is coarse-graining of the classical outcomes. -/
 @[expose]
 protected noncomputable def map (f : ι → κ) (p : DSubInstrument A ι fun i ↦ C (f i)) :
     DSubInstrument A κ C :=
@@ -299,9 +302,10 @@ theorem bind_fail (p : DSubInstrument A ι B) :
 
 /-! ### Framing by an ancilla -/
 
-/-- The action of a dependent subinstrument on a system extended by an ancilla with basis `R`
-that it leaves untouched, on the right as in `Quantum.SubInstrument.frame`: every branch is
-amplified by `R`. -/
+/-- Extend each branch by the identity on a right-hand reference system `R`:
+the branch at `i` is `p.branch i ⊗ id_R`, from `A × R` to `B i × R`.
+No operation acts directly on `R`, but its outcome-conditioned state may change through
+entanglement with the system. This is the dependent-output form of `SubInstrument.frame`. -/
 @[expose]
 noncomputable def frame (p : DSubInstrument A ι B) (R : Type*) [Fintype R] :
     DSubInstrument (A × R) ι fun i ↦ B i × R where
@@ -394,9 +398,9 @@ theorem Lossless.sum_trace_eq {p : DSubInstrument A ι B} (hp : p.Lossless) {s :
 
 /-! ### Measurements -/
 
-/-- The measurement with Kraus operators `K i : Matrix (B i) A ℂ`, one per outcome, whose output
-system depends on the outcome, subject to the completeness relation `∑ i, (K i)ᴴ * K i = 1`. The
-branch at `i` is `ρ ↦ K i * ρ * (K i)ᴴ`. -/
+/-- The finite measurement with Kraus operators `K i : Matrix (B i) A ℂ`, one per outcome,
+whose output system depends on the outcome, subject to the completeness relation
+`∑ i, (K i)ᴴ * K i = 1`. The branch at `i` is `ρ ↦ K i * ρ * (K i)ᴴ`. -/
 @[expose]
 noncomputable def ofKraus [Fintype ι] [DecidableEq A] (K : (i : ι) → Matrix (B i) A ℂ)
     (hK : ∑ i, (K i)ᴴ * K i = 1) : DSubInstrument A ι B :=

@@ -17,11 +17,14 @@ public import ToMathlib.Analysis.Matrix.PosSemidef
 This file fixes the representation of finite-dimensional quantum systems and of the maps
 between them, and the conventions every other quantum file uses.
 
-A system is given by a basis type `A`: its state space is `ℂ^A`, and its operators form the
-matrix algebra `M_A = Matrix A A ℂ`. A quantum state is a density matrix, a positive
-semidefinite element of `M_A` (see `Quantum.SubState`). `Quantum.MatrixMap A B` is the type of
-complex-linear maps `Φ : M_A → M_B`. The linear-map API allows any basis type; the state and
-instrument APIs require finite bases.
+A finite basis type `A` represents the Hilbert space `ℂ^A`, with operator algebra
+`M_A = Matrix A A ℂ`. A normalized quantum state is a density matrix: a positive semidefinite
+matrix `ρ` with `tr ρ = 1`. `Quantum.SubState` instead permits `tr ρ ≤ 1`, so its trace can
+also record the weight of a successful branch. Positive semidefinite means that `ρ` is
+Hermitian and `v†ρv ≥ 0` for every vector `v`.
+
+`Quantum.MatrixMap A B` is a complex-linear map `Φ : M_A → M_B`. Its raw linear-map API allows
+arbitrary basis types; the physical state and instrument APIs use finite bases.
 
 ## Conventions
 
@@ -29,18 +32,19 @@ instrument APIs require finite bases.
   the output index comes first. `Kᴴ` is the conjugate transpose, written `K†` in physics.
 * **Products.** The basis `A × R` represents `ℂ^A ⊗ ℂ^R`, in that order. Kronecker products
   follow the same order: `(X ⊗ₖ Y) (a, r) (b, s) = X a b * Y r s`.
-* **Amplification.** `amplify Φ R` is `Φ ⊗ id_R`: the system is on the left and the untouched
-  reference system `R` on the right. It acts on the whole of `M_{A × R}`, including on operators
-  that are entangled across the two factors.
+* **Amplification.** `amplify Φ R` is `Φ ⊗ id_R`: the system is on the left, and the map acts
+  as the identity on the reference factor `R` on the right. It acts on the whole of `M_{A × R}`,
+  including on operators that are entangled across the two factors.
 * **Kraus maps.** `conj K` is `ρ ↦ K ρ K†`. Here "conj" means conjugation by a matrix, not
   entrywise complex conjugation. Applying `K` and then `L` gives `conj (L * K)`.
 
 ## Physical maps
 
-A positive map sends positive semidefinite matrices to positive semidefinite matrices. That is
-not enough for a map to be physical, because the system may be entangled with another system
-the map does not touch. The transpose map on a qubit is positive, but `transpose ⊗ id` sends
-the entangled state `|00⟩ + |11⟩` (as a density matrix) to a matrix with eigenvalue `-1`.
+A positive map preserves positive semidefinite matrices. To act on one part of an entangled
+system, it must remain positive when extended by the identity on a reference system.
+For example, transposition is positive on a qubit, but `transpose ⊗ id` sends the normalized
+Bell density matrix `ρ = |ψ⟩⟨ψ|`, where `|ψ⟩ = (|00⟩ + |11⟩) / √2`, to a matrix with
+negative eigenvalue `-1/2`. An eigenvector is `|01⟩ - |10⟩`.
 A map is *completely positive* (`IsCP`) when `Φ ⊗ id_R` is positive for every finite `R`.
 
 Physical maps are completely positive. A completely positive map that is also trace
@@ -59,13 +63,23 @@ channel*. `IsTNI` alone is not a physicality condition: the map `-id` satisfies 
 * `Quantum.MatrixMap.traceRight A R`: the partial trace over the right factor of `A × R`.
 
 Positivity is Mathlib's `Matrix.PosSemidef`, read with the `ComplexOrder` partial order on `ℂ`.
+Branch families for classical outcomes are developed in `VCVio.Quantum.MatrixMap.Family`.
 
 ## References
 
-* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018. Complete
-  positivity and trace preservation: equations (1.124)–(1.125), p. 23. Channels: Definition 2.13,
-  p. 73. Partial trace: equations (2.30)–(2.34), p. 68. The CP–Kraus correspondence:
-  Theorem 2.22, p. 82; this file proves the direction from Kraus form to complete positivity.
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018.
+  PDF page numbers below are 1-based. Complete positivity and trace preservation:
+  equations (1.124)–(1.125), printed p. 23,
+  [Chapter 1 PDF p. 23](https://cs.uwaterloo.ca/~watrous/TQI/TQI.1.pdf#page=23).
+  Density operators as states: Definition 2.5, printed p. 62,
+  [full PDF p. 70](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=70).
+  Partial trace: equations (2.30)–(2.34), printed p. 68,
+  [full PDF p. 76](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=76).
+  Channels: Definition 2.13, printed p. 73,
+  [full PDF p. 81](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=81).
+  The CP–Kraus correspondence: Theorem 2.22, printed p. 82,
+  [full PDF p. 90](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=90).
+  This file proves the direction from Kraus form to complete positivity.
 -/
 
 public section
@@ -159,7 +173,8 @@ theorem amplify_amplify_apply (Φ : MatrixMap A B) (ρ : Matrix ((A × R) × S) 
 /-- The partial trace over the right factor of `A × R`, which discards the system `R`:
 `(traceRight A R ρ) a a' = ∑ r, ρ (a, r) (a', r)`. Nothing is divided by the size of `R`, and
 `traceRight A R (X ⊗ₖ Y) = tr Y • X` (`traceRight_kronecker`). This is the partial trace of
-Watrous, *The Theory of Quantum Information*, equations (2.30)–(2.34), p. 68, for two factors. -/
+Watrous, equations (2.30)–(2.34), printed p. 68, full PDF p. 76 (see the module references),
+for two factors. -/
 @[expose]
 def traceRight (A R : Type*) [Fintype R] : MatrixMap (A × R) A where
   toFun ρ := Matrix.of fun a a' ↦ ∑ r, ρ (a, r) (a', r)
@@ -221,7 +236,7 @@ factor, and `ρ` may be entangled across the two factors.
 
 Quantifying over `Fin k` loses no finite reference system: `IsCP.amplify_posSemidef` gives the
 same conclusion for every finite basis type. Taking `k = 1` shows that `Φ` is positive.
-See Watrous, *The Theory of Quantum Information*, equation (1.124), p. 23. -/
+See Watrous, equation (1.124), printed p. 23, Chapter 1 PDF p. 23 (see the module references). -/
 @[expose]
 def IsCP (Φ : MatrixMap A B) : Prop :=
   ∀ (k : ℕ) (ρ : Matrix (A × Fin k) (A × Fin k) ℂ),
@@ -346,8 +361,9 @@ section Trace
 variable [Fintype A] [Fintype B] [Fintype C]
 
 /-- Trace preservation: `tr (Φ X) = tr X` for every matrix `X`, not only for states. Together
-with complete positivity this makes `Φ` a quantum channel (Watrous, *The Theory of Quantum
-Information*, equation (1.125), p. 23, and Definition 2.13, p. 73). -/
+with complete positivity this makes `Φ` a quantum channel (Watrous, equation (1.125), printed
+p. 23, Chapter 1 PDF p. 23; Definition 2.13, printed p. 73, full PDF p. 81; see the module
+references). -/
 @[expose]
 def IsTP (Φ : MatrixMap A B) : Prop :=
   ∀ ρ : Matrix A A ℂ, (Φ ρ).trace = ρ.trace

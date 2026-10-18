@@ -35,10 +35,10 @@ probability that the computation has already failed. The outcome measure has tot
 `tr (p.total ρ) ≤ tr ρ ≤ 1`. Its deficit from one is the failure before `p` plus the trace `p`
 loses.
 
-The outcome type may carry any measurable structure. The weight of a single outcome is read off
-under `MeasurableSingletonClass` (`Quantum.SubInstrument.outcomeMeasure_apply_singleton`). The
-measure may charge infinitely many outcomes, but only countably many, so it never describes a
-measurement with continuous outcomes.
+The outcome type may carry any measurable structure. The defining sum has only countably many
+nonzero weights; with measurable singletons these are the nonzero singleton masses
+(`Quantum.SubInstrument.outcomeMeasure_apply_singleton`). Measurable events have the corresponding
+sums of weights. The weighted Dirac sum does not describe a nonatomic measurement law.
 
 Dependent subinstruments are observed in the same way. `Quantum.DSubInstrument.post` is the
 family of post-states, one on the system `B i` for each outcome `i`, and
@@ -50,9 +50,12 @@ with the versions for subinstruments (`Quantum.SubInstrument.post_toD`,
 
 ## References
 
-* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018. Density
-  matrices: Definition 2.5, p. 62. Instruments, outcome probabilities and post-measurement states
-  in the normalized, finite case: equations (2.258)–(2.261), p. 112.
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018.
+  PDF page numbers are 1-based. Density matrices: Definition 2.5, printed p. 62,
+  [full PDF p. 70](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=70).
+  Instruments, outcome probabilities and post-measurement states in the normalized, finite case:
+  equations (2.258)–(2.261), printed p. 112,
+  [full PDF p. 120](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=120).
 -/
 
 public section
@@ -64,8 +67,8 @@ namespace Quantum
 
 /-- A subnormalized state of the system `A`: a positive semidefinite matrix `ρ` with
 `tr ρ ≤ 1`. Its trace is real and nonnegative because `ρ` is positive semidefinite. Trace one
-is a density matrix in the usual sense (Watrous, *The Theory of Quantum Information*,
-Definition 2.5, p. 62); trace zero forces `ρ = 0`. The deficit `1 - tr ρ` is the probability
+is a density matrix in the usual sense (Watrous, Definition 2.5, printed p. 62, full PDF p. 70;
+see the module references); trace zero forces `ρ = 0`. The deficit `1 - tr ρ` is the probability
 that the computation has already failed. -/
 @[ext]
 structure SubState (A : Type*) [Fintype A] where
@@ -112,12 +115,15 @@ theorem post_pure_self (a : α) (ρ : SubState A) :
 
 /-! ## Outcome measures -/
 
-/-- The distribution of the outcome of `p` on `ρ`, by the Born rule: `∑ a, tr (p.branch a ρ) • δ_a`,
-as a `Measure.sum` of point masses. For a normalized `ρ` the weights are outcome probabilities.
+/-- The Born outcome measure `μ_ρ = ∑ a, tr (p.branch a ρ) • δ_a`, implemented as a
+`Measure.sum`. For normalized `ρ` the coefficients are outcome probabilities; for subnormalized
+`ρ` they also include the input's successful mass.
 
-The total mass is `tr (p.total ρ) ≤ tr ρ ≤ 1`, and missing mass is failure, both before and
-during `p`. Only countably many outcomes are charged. The weight of one outcome is read off under
-`MeasurableSingletonClass` (`outcomeMeasure_apply_singleton`). -/
+The total mass is `tr (p.total ρ) ≤ tr ρ ≤ 1`, so missing mass includes failure before and
+during `p`. Only countably many coefficients are nonzero. For any measurable structure on the
+outcomes, measurable events have the corresponding sums of coefficients. With
+`MeasurableSingletonClass`, each singleton has its branch's coefficient
+(`outcomeMeasure_apply_singleton`). -/
 @[expose]
 noncomputable def outcomeMeasure [MeasurableSpace α] (p : SubInstrument A B α)
     (ρ : SubState A) : Measure α :=
@@ -211,12 +217,12 @@ theorem outcomeMeasure_fail (ρ : SubState A) :
 
 end outcomeMeasure
 
-/-- Chain rule: the distribution of the outcome of `p.bind k` on `ρ` is the sum, over the outcomes
-`a` of `p`, of the distribution of the outcome of `k a` on the post-state `p.post ρ a`. On a final
-event `E`, its weight is `∑' a, ∑' b ∈ E, tr ((k a).branch b (p.branch a ρ))`.
+/-- Chain rule: the outcome measure of `p.bind k` on `ρ` is the sum over `a` of the outcome
+measures of `k a` on `p.post ρ a`. For a measurable final event `E`, its weight is
+`∑' a, ∑' b : E, tr ((k a).branch b (p.branch a ρ))`.
 
-The post-state is unnormalized and already carries the probability of `a`, so no further factor
-for that probability appears. The intermediate outcomes need no measurable structure. -/
+The post-state is unnormalized and already includes the weight of `a`; no additional factor
+for that weight appears. Intermediate outcomes require no measurable structure. -/
 theorem outcomeMeasure_bind [MeasurableSpace β] (p : SubInstrument A B α)
     (k : α → SubInstrument B C β) (ρ : SubState A) :
     (p.bind k).outcomeMeasure ρ = Measure.sum fun a ↦ (k a).outcomeMeasure (p.post ρ a) := by
@@ -266,12 +272,15 @@ theorem post_ret_self (i : ι) (ρ : SubState (B i)) : (ret B i).post ρ i = ρ 
 
 /-! ### Outcome measures -/
 
-/-- The distribution of the outcome of `p` on `ρ`, by the Born rule: `∑ i, tr (p.branch i ρ) • δ_i`,
-as a `Measure.sum` of point masses. For a normalized `ρ` the weights are outcome probabilities.
+/-- The Born outcome measure `μ_ρ = ∑ i, tr (p.branch i ρ) • δ_i`, implemented as a
+`Measure.sum`. For normalized `ρ` the coefficients are outcome probabilities; for subnormalized
+`ρ` they also include the input's successful mass.
 
-The total mass is `MatrixMap.familyTrace p.branch ρ ≤ tr ρ ≤ 1`, and missing mass is failure, both
-before and during `p`. Only countably many outcomes are charged. The weight of one outcome is read
-off under `MeasurableSingletonClass` (`outcomeMeasure_apply_singleton`). -/
+The total mass is `Re (MatrixMap.familyTrace p.branch ρ) ≤ tr ρ ≤ 1`, so missing mass includes
+failure before and during `p`. Only countably many coefficients are nonzero. For any measurable
+structure on the outcomes, measurable events have the corresponding sums of coefficients. With
+`MeasurableSingletonClass`, each singleton has its branch's coefficient
+(`outcomeMeasure_apply_singleton`). -/
 @[expose]
 noncomputable def outcomeMeasure [MeasurableSpace ι] (p : DSubInstrument A ι B)
     (ρ : SubState A) : Measure ι :=

@@ -17,9 +17,9 @@ Its three parts are: the semantic monad `SubInstrument M M`; the identity interp
 and the observation `p ↦ p.outcomeMeasure ρ₀`, which runs `p` from the fixed initial substate
 `ρ₀`, keeps the distribution of the classical outcome and discards the final quantum state.
 
-The interpretation is a monad morphism; the observation is not. The distribution of the outcome of
-`p.bind k` depends on the quantum state that `p` leaves behind, which the distribution of the
-outcome of `p` forgets. The composition law is the chain rule
+The interpretation is a monad morphism; the observation does not in general preserve `bind`.
+The distribution of the outcome of `p.bind k` depends on the quantum state that `p` leaves behind,
+which the distribution of the outcome of `p` forgets. The composition law is the chain rule
 `Quantum.SubInstrument.outcomeMeasure_bind`.
 
 This is the only part of the quantum core that imports the rest of VCVio; the outcome measure
@@ -39,7 +39,8 @@ variable {M : Type u} [Fintype M]
 /-- Subinstruments on the register `M`, observed from the initial substate `ρ₀`: the semantic
 monad is `SubInstrument M M`, the interpretation is the identity, and the observation is
 `p ↦ p.outcomeMeasure ρ₀`, which keeps the distribution of the classical outcome and discards the
-final quantum state. The observation does not preserve `bind`; see `outcomeMeasure_bind`. -/
+final quantum state. The observation does not in general preserve `bind`; see
+`outcomeMeasure_bind`. -/
 @[expose]
 noncomputable def semanticsVia (ρ₀ : SubState M) : SemanticsVia (SubInstrument.{u, u, w} M M) where
   Sem := SubInstrument M M
