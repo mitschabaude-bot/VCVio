@@ -120,6 +120,14 @@ theorem kronecker_one_applyVec_tensorVec [Fintype A] [Fintype R] [DecidableEq A]
     (K ⊗ₖ (1 : Matrix R R ℂ)) •ᵥ (ψ ⊗ᵥ χ) = (K •ᵥ ψ) ⊗ᵥ χ := by
   rw [kronecker_applyVec_tensorVec, one_applyVec]
 
+/-- Applying a contraction to the first factor preserves subnormalization of a product vector. -/
+theorem norm_applyVec_tensorVec_le_one [Fintype A] [Fintype B] [Fintype R] [DecidableEq A]
+    {K : Matrix B A ℂ} (hK : ‖K‖ ≤ 1) (ψ : EuclideanSpace ℂ A) (χ : EuclideanSpace ℂ R)
+    (h : ‖ψ ⊗ᵥ χ‖ ≤ 1) : ‖(K •ᵥ ψ) ⊗ᵥ χ‖ ≤ 1 := by
+  rw [norm_tensorVec] at h ⊢
+  exact (mul_le_mul_of_nonneg_right (norm_applyVec_le_of_norm_le_one hK ψ)
+    (norm_nonneg χ)).trans h
+
 /-- An operator on the second register acts on the second factor of a product vector. -/
 theorem one_kronecker_applyVec_tensorVec [Fintype A] [Fintype R] [DecidableEq A]
     [DecidableEq R] (L : Matrix S R ℂ) (ψ : EuclideanSpace ℂ A) (χ : EuclideanSpace ℂ R) :
@@ -255,9 +263,9 @@ omit [DecidableEq R] in
 substate of `(K •ᵥ ψ) ⊗ᵥ χ`. -/
 theorem post_frame_ofContraction_ofVector_tensorVec (K : Matrix B A ℂ) (hK : ‖K‖ ≤ 1)
     (ψ : EuclideanSpace ℂ A) (χ : EuclideanSpace ℂ R) (h : ‖ψ ⊗ᵥ χ‖ ≤ 1)
-    (h' : ‖(K •ᵥ ψ) ⊗ᵥ χ‖ ≤ 1) (u : PUnit) :
+    (u : PUnit) :
     ((ofContraction K hK).frame R).post (.ofVector (ψ ⊗ᵥ χ) h) u =
-      .ofVector ((K •ᵥ ψ) ⊗ᵥ χ) h' :=
+      .ofVector ((K •ᵥ ψ) ⊗ᵥ χ) (norm_applyVec_tensorVec_le_one hK ψ χ h) :=
   SubState.ext <| by
     classical
     rw [frame_ofContraction, post_ofContraction_ofVector, SubState.matrix_ofVector,

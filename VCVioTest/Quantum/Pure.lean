@@ -205,10 +205,11 @@ example : ‖hadamard ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ)‖ ≤ 1 :=
 
 /-- Framing the Hadamard gate by a second qubit applies `H ⊗ₖ 1`, and sends `|0⟩ ⊗ χ` to
 `|+⟩ ⊗ χ`. -/
-example (χ : EuclideanSpace ℂ (Fin 2)) (h : ‖ket0 ⊗ᵥ χ‖ ≤ 1)
-    (h' : ‖(hadamard •ᵥ ket0) ⊗ᵥ χ‖ ≤ 1) :
+example (χ : EuclideanSpace ℂ (Fin 2)) (h : ‖ket0 ⊗ᵥ χ‖ ≤ 1) :
     ((SubInstrument.ofUnitary hadamardGate).frame (Fin 2)).post (.ofVector (ket0 ⊗ᵥ χ) h)
-      PUnit.unit = .ofVector ((hadamard •ᵥ ket0) ⊗ᵥ χ) h' :=
+      PUnit.unit = .ofVector ((hadamard •ᵥ ket0) ⊗ᵥ χ)
+        (norm_applyVec_tensorVec_le_one
+          (l2_opNorm_le_one_of_mem_unitaryGroup hadamard_mem_unitaryGroup) ket0 χ h) :=
   SubInstrument.post_frame_ofContraction_ofVector_tensorVec ..
 
 /-! ## A measurement with infinitely many outcomes -/
