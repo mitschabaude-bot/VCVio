@@ -120,7 +120,7 @@ example [Fintype A] :
 
 /-- Keeping the diagonal entries of the input at the basis states in `S` and discarding the rest:
 the branch of a computational-basis measurement on the event `S`. -/
-def measureIn [Fintype A] (S : Finset A) : MatrixMap A A :=
+def measureBasisEvent [Fintype A] (S : Finset A) : MatrixMap A A :=
   ∑ a : S, MatrixMap.conj (Matrix.single (a : A) (a : A) (1 : ℂ))
 
 /-- The diagonal matrix units form a completely positive family with trace-nonincreasing
@@ -133,8 +133,8 @@ theorem isCPTNIFamily_single [Fintype A] :
     simpa only [MatrixMap.trace_re_sum_apply] using h.isTNI ρ hρ
 
 /-- Measurement on an event is trace nonincreasing. -/
-theorem isTNI_measureIn [Fintype A] (S : Finset A) : (measureIn S).IsTNI := by
-  rw [measureIn, Finset.sum_coe_sort S fun a ↦ MatrixMap.conj (Matrix.single a a (1 : ℂ))]
+theorem isTNI_measureBasisEvent [Fintype A] (S : Finset A) : (measureBasisEvent S).IsTNI := by
+  rw [measureBasisEvent, Finset.sum_coe_sort S fun a ↦ MatrixMap.conj (Matrix.single a a (1 : ℂ))]
   exact isCPTNIFamily_single.isTNI_sum S
 
 open scoped MatrixOrder in
@@ -142,7 +142,7 @@ open scoped MatrixOrder in
 event satisfy `∑ a : S, (single a a 1)ᴴ * single a a 1 ≤ 1`. -/
 example [Fintype A] (S : Finset A) :
     ∑ a : S, (Matrix.single (a : A) (a : A) (1 : ℂ))ᴴ * Matrix.single (a : A) (a : A) 1 ≤ 1 :=
-  Matrix.le_iff.mpr (MatrixMap.isTNI_sum_conj_iff.mp (isTNI_measureIn S))
+  Matrix.le_iff.mpr (MatrixMap.isTNI_sum_conj_iff.mp (isTNI_measureBasisEvent S))
 
 /-! ## Instruments -/
 
