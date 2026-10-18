@@ -20,26 +20,33 @@ conclude a statement about `outcomeMeasure`.
 
 ## Conventions
 
-* A state vector of the system `A` is an element of `EuclideanSpace ℂ A`, with
-  `‖ψ‖² = ∑ a, ‖ψ a‖²`. A normalized pure state has `‖ψ‖ = 1`; a vector of norm less than one is
-  the state of a branch whose probability is `‖ψ‖²`. Lemmas assume no norm bound unless they say
-  so.
+* For a finite computational basis `A`, vectors are `EuclideanSpace ℂ A`, with
+  `‖ψ‖² = ∑ a, ‖ψ a‖²`. A unit vector represents a normalized pure state. A vector with
+  `‖ψ‖ ≤ 1` can represent an unnormalized branch of weight `‖ψ‖²`, including the zero branch.
+  Algebraic and norm lemmas assume no normalization unless their statements say so.
 * An operator from `A` to `B` is the same `K : Matrix B A ℂ` that the core uses as a Kraus
-  operator, so no translation between operator types is needed. It acts on column vectors,
+  operator: `Quantum.MatrixMap.conj K` is the map `ρ ↦ KρK†`, distinct from scalar `conj`.
+  It acts on column vectors,
   `(K •ᵥ ψ) b = ∑ a, K b a * ψ a`, through Mathlib's `Matrix.toEuclideanLin` (open the `Quantum`
   scope for `•ᵥ`). `L * K` applies `K` first.
 * The inner product `⟪φ, ψ⟫ = ∑ a, conj (φ a) * ψ a` is conjugate-linear in its first argument,
   as is the physicists' `⟨φ|ψ⟩`.
+* `K†` is the adjoint, written `Kᴴ` in Lean. Matrix inequalities in these descriptions use
+  positive-semidefinite (Löwner) order: `X ≤ Y` means `Y - X` is positive semidefinite (PSD).
 * Opening `Matrix.Norms.L2Operator` makes `‖K‖` the operator norm `sup_{‖ψ‖ ≤ 1} ‖K •ᵥ ψ‖`. A bare
   function `A → ℂ` carries the supremum norm instead, which is why vectors are `EuclideanSpace`.
 
 ## Why vectors and density matrices coexist
 
-Vectors are the natural language for interference and for errors that accumulate over queries:
-`‖ψ - φ‖` is a distance, and operators move it by at most their norm. Density matrices are needed
-for everything vectors cannot express: mixed states, which arise as soon as a measurement outcome
-is forgotten, and the composition of measurements with later quantum steps. Measuring `|+⟩` and
-forgetting the outcome leaves `(1/2) · 1`, which is not `|ψ⟩⟨ψ|` for any vector `ψ`.
+Vectors describe interference and errors that accumulate over queries: an operator `K` changes
+vector distances by at most a factor `‖K‖`. A retained history with one Kraus operator at each
+step can still be described by a vector. Combining different histories adds their density
+matrices, and the result can be mixed, with no single-vector representative.
+
+For example, measuring the qubit `|+⟩ = (|0⟩ + |1⟩) / √2` in the computational basis and forgetting
+the outcome gives `(|0⟩⟨0| + |1⟩⟨1|) / 2 = I / 2`. This is mixed. Forgetting an outcome need not
+produce a mixed state: the same measurement on `|0⟩` leaves `|0⟩⟨0|`. Density matrices let the
+core compose both kinds of computation while retaining the quantum state needed by later steps.
 
 The bridge is the pure substate `|ψ⟩⟨ψ|` (`Quantum.SubState.ofVector`, in
 `VCVio.Quantum.Pure.State`) together with the Born rule for Kraus measurements
@@ -51,8 +58,10 @@ The bridge is the pure substate `|ψ⟩⟨ψ|` (`Quantum.SubState.ofVector`, in
   action, and is the least such bound.
 * `Quantum.inner_applyVec_applyVec` and `Quantum.norm_sq_applyVec`: operators move through inner
   products as their conjugate transposes.
-* `Quantum.posSemidef_one_sub_conjTranspose_mul_self_iff`: `K† K ≤ 1` exactly when `‖K‖ ≤ 1`.
-  This identifies the contractions with the hypothesis of `Quantum.MatrixMap.isTNI_conj`.
+* `Quantum.posSemidef_one_sub_conjTranspose_mul_self_iff`: `K† K ≤ I` in positive-semidefinite
+  order, meaning `I - K† K` is PSD, exactly when `‖K‖ ≤ 1`. Here `K†` is Lean's `Kᴴ`.
+  This identifies contractions with the hypothesis of `Quantum.MatrixMap.isTNI_conj`, whose
+  map is `ρ ↦ KρK†`, rather than entrywise complex conjugation.
 * `Quantum.sum_norm_sq_applyVec`: a complete family of Kraus operators preserves the squared norm.
 * `Quantum.norm_sq_applyVec_add_norm_sq_one_sub_applyVec`: Pythagoras for an orthogonal
   projection, which Mathlib calls a star projection (`IsStarProjection`).

@@ -17,10 +17,18 @@ subnormalized vector `ψ` is `Quantum.SubState.ofVector ψ`, with density matrix
 which is how a statement about vectors becomes a statement about the density matrices of
 `Quantum.SubInstrument`.
 
+Vector, adjoint, and matrix-order conventions are in `VCVio.Quantum.Pure.Vector`.
+
 ## Main definitions
 
 * `Quantum.ketBra ψ φ`: the operator `|ψ⟩⟨φ|`, as a matrix.
 * `Quantum.SubState.ofVector ψ hψ`: the pure substate of a vector with `‖ψ‖ ≤ 1`.
+
+## References
+
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018:
+  [author's PDF](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf#page=70).
+  Quantum states: Definition 2.5, PDF p. 70 (printed p. 62). PDF pages are counted from one.
 -/
 
 public section
@@ -119,13 +127,14 @@ end ketBra
 
 variable [Fintype A] [Fintype B]
 
-/-- The pure substate `|ψ⟩⟨ψ|` of a vector with `‖ψ‖ ≤ 1`. Its trace is `‖ψ‖²`, the probability
-of the branch the vector describes. A unit vector gives a normalized pure state, and the zero
-vector the zero substate.
+/-- The subnormalized pure density operator `ρψ = |ψ⟩⟨ψ|` for `‖ψ‖ ≤ 1`.
+Its trace is `‖ψ‖²`, interpreted as the branch weight. A unit vector gives a normalized pure
+state; zero gives the zero substate. The normalized case uses the state convention of Watrous,
+Definition 2.5 (PDF p. 70); allowing trace below one records unsuccessful computation.
 
-Vectors that differ by a phase `e^{iθ}` give the same substate (`ofVector_smul`): a global phase
-is not observable. Mixed substates are not of this form. `conj_matrix_ofVector` turns the action
-`ρ ↦ K ρ K†` on `|ψ⟩⟨ψ|` into the action `ψ ↦ K •ᵥ ψ` on vectors. -/
+Vectors differing by a scalar of modulus one give the same substate (`ofVector_smul`). General
+mixed substates need not have a vector representative. `conj_matrix_ofVector` proves that
+`K |ψ⟩⟨ψ| K† = |Kψ⟩⟨Kψ|`. Vector and adjoint conventions are in `VCVio.Quantum.Pure.Vector`. -/
 @[expose]
 def SubState.ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) : SubState A where
   matrix := ketBra ψ ψ

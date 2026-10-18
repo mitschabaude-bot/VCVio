@@ -13,6 +13,7 @@ public import VCVio.Quantum.Pure.Vector
 
 The estimates that vector-level query-complexity arguments are assembled from, for operators
 `Matrix B A ℂ` with the operator norm `Matrix.Norms.L2Operator` acting on `EuclideanSpace ℂ A`.
+Vector, adjoint, and matrix-order conventions are in `VCVio.Quantum.Pure.Vector`.
 
 ## Main results
 
@@ -20,8 +21,8 @@ The estimates that vector-level query-complexity arguments are assembled from, f
   Lipschitz in the vector, with constant the operator norm.
 * `Quantum.abs_norm_sq_applyVec_sub_norm_sq_applyVec_le`,
   `Quantum.abs_sum_norm_sq_applyVec_sub_sum_norm_sq_applyVec_le`: squared norms of images under
-  a contraction, or under a jointly contractive family, differ by at most
-  `(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`, hence by at most `2 * ‖ψ - φ‖` on subnormalized vectors.
+  a contraction, or under a jointly contractive family (`∑ i, ‖K i •ᵥ χ‖² ≤ ‖χ‖²`), differ by
+  at most `(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`, hence by at most `2 * ‖ψ - φ‖` on subnormalized vectors.
 * `Quantum.norm_commutator_mul_le`, `Quantum.norm_commutator_list_prod_le`: the Leibniz bound
   for the commutator `⁅A, B⁆ = A * B - B * A` and its telescoped form.
 * `Quantum.queryState`, `Quantum.norm_queryState_sub_queryState_le`: the state of an alternating
@@ -112,18 +113,21 @@ theorem sum_norm_sq_applyVec_le [Fintype ι] {K : ι → Matrix B A ℂ}
 
 /-! ## Commutators -/
 
-/-- Leibniz bound for the commutator with a product of operators. -/
+/-- Leibniz bound for the commutator with a product of operators: `norm_lie_mul_le`
+specialized to the induced ℓ² operator norm. -/
 theorem norm_commutator_mul_le (X Y Z : Matrix A A ℂ) :
     ‖⁅X, Y * Z⁆‖ ≤ ‖⁅X, Y⁆‖ * ‖Z‖ + ‖Y‖ * ‖⁅X, Z⁆‖ :=
   norm_lie_mul_le X Y Z
 
-/-- Leibniz bound for the commutator of a product of operators. -/
+/-- Leibniz bound for the commutator of a product of operators: `norm_mul_lie_le`
+specialized to the induced ℓ² operator norm. -/
 theorem norm_mul_commutator_le (X Y Z : Matrix A A ℂ) :
     ‖⁅X * Y, Z⁆‖ ≤ ‖X‖ * ‖⁅Y, Z⁆‖ + ‖⁅X, Z⁆‖ * ‖Y‖ :=
   norm_mul_lie_le X Y Z
 
 /-- Telescoped Leibniz bound: the commutator of `X` with a product of contractions is bounded by
-the sum of the norms of the commutators of `X` with the factors. -/
+the sum of the norms of the commutators of `X` with the factors. This is `norm_lie_list_prod_le`
+specialized to the induced ℓ² operator norm. -/
 theorem norm_commutator_list_prod_le (X : Matrix A A ℂ) (l : List (Matrix A A ℂ))
     (hl : ∀ Y ∈ l, ‖Y‖ ≤ 1) : ‖⁅X, l.prod⁆‖ ≤ (l.map fun Y ↦ ‖⁅X, Y⁆‖).sum :=
   norm_lie_list_prod_le X l hl

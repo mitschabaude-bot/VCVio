@@ -13,9 +13,10 @@ public import VCVioTest.Quantum.Basic
 
 A Hadamard gate followed by the computational-basis measurement of one qubit, started from
 `|0⟩`, reports each outcome with weight `1 / 2`: once through the Born rule on vectors, and once
-through the density matrix `|+⟩⟨+|`, which the vector route reaches. The remaining checks
-instantiate the commutator bounds on Pauli matrices, the hybrid bound at one query, and the norm
-of a gate on one of two qubits. Last, the geometric instrument, which has infinitely many
+through the density matrix `|+⟩⟨+|`, which the vector route reaches. Further checks cover
+natural-number projective labels, complex phase and interference, Pauli commutator bounds,
+the hybrid bound at one query, the norm of a gate on one of two qubits, and local measurement
+of a Bell pair. Last, the geometric instrument, which has infinitely many
 outcomes, is written in Kraus form, and the Born rule on vectors gives outcome `n` the weight
 `2^{-(n+1)} ‖ψ‖ ^ 2`.
 -/
@@ -244,7 +245,9 @@ theorem hadamard_applyVec_phaseGate_plus :
   · linear_combination (1 + Complex.I) * amp_mul_amp
   · linear_combination (1 - Complex.I) * amp_mul_amp
 
-/-- Measuring in the `X` basis is a Hadamard followed by computational-basis measurement. -/
+/-- X-basis outcome statistics, obtained by applying a Hadamard and then measuring in the
+computational basis. The retained output is in the computational basis: the branch operator
+is `P_a H`. Applying a further Hadamard would give the X-basis Lüders instrument. -/
 noncomputable def measureX : SubInstrument (Fin 2) (Fin 2) (Fin 2) :=
   SubInstrument.ofUnitary hadamardGate >>= fun _ ↦ measureZ
 

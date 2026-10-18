@@ -13,6 +13,7 @@ public import VCVio.Quantum.Pure.Instrument
 The product system `A × R` has state space `ℂ^A ⊗ ℂ^R`, in that order. The product vector
 `ψ ⊗ᵥ χ` (`Quantum.tensorVec`) has coefficient `ψ a * χ r` at `(a, r)`, and Kronecker products of
 operators follow the same order: `(K ⊗ₖ L) (b, s) (a, r) = K b a * L s r`.
+Open the `Quantum` scope for `⊗ᵥ` and the `Kronecker` scope for `⊗ₖ`.
 
 An operator `K` on `A` acts on `A × R` as `K ⊗ₖ 1`, leaving `R` untouched. This is the vector form
 of `Quantum.SubInstrument.frame R`, which puts the untouched register on the right: framing

@@ -21,6 +21,10 @@ These statements are about one Kraus operator per outcome. A branch that sums se
 or a computation that forgets an outcome, can produce a mixed state, and a pure-state argument
 about it must track the individual Kraus contributions (`Quantum.MatrixMap.conj`).
 
+Vector, adjoint, and matrix-order conventions are in `VCVio.Quantum.Pure.Vector`.
+`Quantum.SubInstrument` is an atomic, possibly trace-losing instrument;
+`Quantum.DSubInstrument` also allows the output system to depend on the outcome.
+
 ## Constructors
 
 * `Quantum.SubInstrument.ofContraction K hK`: the one-outcome subinstrument `ρ ↦ K ρ K†` of an
@@ -28,8 +32,11 @@ about it must track the individual Kraus contributions (`Quantum.MatrixMap.conj`
   `K` is an isometry.
 * `Quantum.SubInstrument.ofUnitary U`: a unitary gate, the lossless case on one register. Running
   `U` and then `V` is running `V * U`.
-* `Quantum.SubInstrument.ofProjective P hP hsum`: the measurement with orthogonal projections
-  `P a` summing to the identity, which leaves `P a •ᵥ ψ` on outcome `a`.
+* `Quantum.SubInstrument.ofProjectiveFinset P hP s hs hsum`: the Lüders instrument with arbitrary
+  labels and projections supported on a finite set `s`. Each projection is self-adjoint and
+  idempotent (`P a† = P a`, `P a² = P a`), and their sum over `s` is the identity.
+* `Quantum.SubInstrument.ofProjective P hP hsum`: the finite-label Lüders instrument, which
+  leaves the unnormalized vector `P a •ᵥ ψ` on outcome `a`.
 
 ## Observation lemmas
 
@@ -54,9 +61,12 @@ Lemmas about a single outcome need measurable singletons.
 
 ## References
 
-* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018. Instruments
-  and post-measurement states: equations (2.258)–(2.261), p. 112. A complete family of projections
-  is pairwise orthogonal: Proposition 2.40, p. 107.
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018:
+  [author's PDF](https://cs.uwaterloo.ca/~watrous/TQI/TQI.pdf).
+  Single-operator measurement updates: equations (2.255)–(2.257), PDF pp. 119–120.
+  Instruments and conditional post-measurement states: equations (2.258)–(2.261), PDF p. 120
+  (printed p. 112). Orthogonality of complete projection families: Proposition 2.40 and its
+  proof, PDF pp. 115–116 (printed pp. 107–108). PDF pages are counted from one.
 -/
 
 public section
@@ -282,8 +292,14 @@ theorem outcomeMeasure_real_ofKraus_ofVector_apply (K : α → Matrix B A ℂ)
   rw [Measure.real, outcomeMeasure_ofKraus_ofVector_apply,
     ENNReal.toReal_ofReal (Finset.sum_nonneg fun _ _ ↦ sq_nonneg _)]
 
-/-- The weights that a Kraus measurement gives an event on the pure substates of two vectors
-differ by at most `(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`. -/
+/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
+`|p_E(ψ) - p_E(φ)| ≤ (‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`, where
+`p_E(ψ) = ∑ a ∈ E, ‖K_a ψ‖²` on the substate `|ψ⟩⟨ψ|`.
+
+The coefficient is at most two for subnormalized inputs and does not depend on the number
+of outcomes. This theorem uses `ofKraus`; the arbitrary-outcome Born identities below do not
+by themselves extend this perturbation result to infinite families. The vector hybrid bound
+`Quantum.norm_queryState_sub_queryState_le` has coefficient one before event conversion. -/
 theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le (K : α → Matrix B A ℂ)
     (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
     (s : Set α) :
@@ -294,8 +310,10 @@ theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le (K : α → Matrix B A �
   exact abs_sum_norm_sq_applyVec_sub_sum_norm_sq_applyVec_le _ K
     (fun χ ↦ sum_norm_sq_applyVec_le hK _ χ) ψ φ
 
-/-- The weights that a Kraus measurement gives an event on the pure substates of two vectors
-differ by at most twice the distance between the vectors. -/
+/-- Event perturbation for a finite complete single-Kraus family `∑ a, K_a† K_a = I`:
+on subnormalized vectors, event weights from `ofKraus` differ by at most `2 * ‖ψ - φ‖`.
+This factor two converts vector distance to event-weight difference; the vector hybrid bound
+`Quantum.norm_queryState_sub_queryState_le` itself has coefficient one. -/
 theorem abs_outcomeMeasure_real_ofKraus_ofVector_sub_le_two_mul (K : α → Matrix B A ℂ)
     (hK : ∑ a, (K a)ᴴ * K a = 1) (ψ φ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (hφ : ‖φ‖ ≤ 1)
     (s : Set α) :
@@ -321,8 +339,14 @@ theorem sum_conjTranspose_mul_self_of_isStarProjection_finset {P : α → Matrix
     rw [← Matrix.star_eq_conjTranspose, (hP a).isSelfAdjoint.star_eq,
       (hP a).isIdempotentElem.eq]
 
-/-- The Lüders instrument of projections with arbitrary labels and finite support `s`.
-Completeness is the sum over `s`; all projections outside `s` must vanish. -/
+/-- The Lüders instrument `Φ_a(ρ) = P_a ρ P_a`, with labels in an arbitrary type.
+Each `P_a` is an orthogonal projection: `P_a† = P_a` and `P_a² = P_a`. The projections vanish
+outside the finite set `s` and satisfy `∑ a ∈ s, P_a = I`. Distinct projections are therefore
+orthogonal (`mul_eq_zero_of_isStarProjection_finset`).
+
+On `|ψ⟩⟨ψ|`, outcome `a` has weight `‖P_a ψ‖²` and leaves the unnormalized state
+`|P_a ψ⟩⟨P_a ψ|`. See the module references for the measurement update and Watrous's
+Proposition 2.40. `ofProjective` specializes this constructor to a finite label type. -/
 @[expose]
 noncomputable def ofProjectiveFinset (P : α → Matrix A A ℂ)
     (hP : ∀ a, IsStarProjection (P a)) (s : Finset α) (hs : ∀ a ∉ s, P a = 0)
