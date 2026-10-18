@@ -254,7 +254,8 @@ variable {A B : Type*} [Fintype A] [Fintype B] {α : Type*} [MeasurableSpace α]
 /-- The total outcome mass is the trace of the total map on the substate. -/
 theorem outcomeMeasure_apply_univ (p : SubInstrument A B α) (ρ : SubState A) :
     p.outcomeMeasure ρ Set.univ = ENNReal.ofReal (p.total ρ.matrix).trace.re := by
-  rw [DSubInstrument.outcomeMeasure_apply_univ, familyTrace_branch, LinearMap.comp_apply]
+  rw [DSubInstrument.outcomeMeasure_apply_univ, DSubInstrument.familyTrace_branch,
+    LinearMap.comp_apply]
   rfl
 
 end SubInstrument
