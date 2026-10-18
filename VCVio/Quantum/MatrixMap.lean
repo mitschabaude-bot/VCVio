@@ -9,6 +9,7 @@ public import Mathlib.Analysis.Complex.Order
 public import Mathlib.Analysis.Matrix.Order
 public import Mathlib.LinearAlgebra.Matrix.Kronecker
 public import Mathlib.LinearAlgebra.Matrix.PosDef
+public import ToMathlib.Analysis.Matrix.PosSemidef
 
 /-!
 # Linear maps between matrix algebras
@@ -34,21 +35,6 @@ public section
 
 open scoped ComplexOrder Kronecker
 open Matrix
-
-/-- The trace of a positive semidefinite complex matrix has nonnegative real part. -/
-theorem Matrix.PosSemidef.trace_re_nonneg {n : Type*} [Fintype n] {ρ : Matrix n n ℂ}
-    (hρ : ρ.PosSemidef) : 0 ≤ ρ.trace.re :=
-  (Complex.nonneg_iff.mp hρ.trace_nonneg).1
-
-/-- The trace of a product of two positive semidefinite complex matrices has nonnegative real
-part. -/
-theorem Matrix.PosSemidef.trace_mul_re_nonneg {n : Type*} [Fintype n] {P ρ : Matrix n n ℂ}
-    (hP : P.PosSemidef) (hρ : ρ.PosSemidef) : 0 ≤ (P * ρ).trace.re := by
-  classical
-  open scoped MatrixOrder in
-  obtain ⟨Y, rfl⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp hρ.nonneg
-  rw [star_eq_conjTranspose, ← Matrix.mul_assoc, Matrix.trace_mul_comm, ← Matrix.mul_assoc]
-  exact (hP.mul_mul_conjTranspose_same Y).trace_re_nonneg
 
 namespace Quantum
 

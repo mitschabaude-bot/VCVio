@@ -76,31 +76,6 @@ public section
 open scoped ComplexOrder
 open Matrix
 
-/-! ## Positivity through the trace pairing -/
-
-namespace Matrix
-
-variable {n : Type*} [Fintype n]
-
-/-- A Hermitian complex matrix whose trace pairing with every positive semidefinite matrix has
-nonnegative real part is positive semidefinite. -/
-theorem IsHermitian.posSemidef_of_trace_mul_re_nonneg {N : Matrix n n ℂ} (hN : N.IsHermitian)
-    (h : ∀ ρ : Matrix n n ℂ, ρ.PosSemidef → 0 ≤ (N * ρ).trace.re) : N.PosSemidef := by
-  refine PosSemidef.of_dotProduct_mulVec_nonneg hN fun v ↦ ?_
-  have h1 := h _ (posSemidef_vecMulVec_self_star v)
-  rw [mul_vecMulVec, trace_vecMulVec, dotProduct_comm] at h1
-  refine Complex.nonneg_iff.mpr ⟨h1, ?_⟩
-  simpa using (hN.im_star_dotProduct_mulVec_self v).symm
-
-/-- A complex matrix is positive semidefinite iff it is Hermitian and its trace pairing with every
-positive semidefinite matrix has nonnegative real part. -/
-theorem posSemidef_iff_forall_trace_mul_re_nonneg {N : Matrix n n ℂ} :
-    N.PosSemidef ↔ N.IsHermitian ∧ ∀ ρ : Matrix n n ℂ, ρ.PosSemidef → 0 ≤ (N * ρ).trace.re :=
-  ⟨fun hN ↦ ⟨hN.isHermitian, fun _ hρ ↦ hN.trace_mul_re_nonneg hρ⟩,
-    fun h ↦ h.1.posSemidef_of_trace_mul_re_nonneg h.2⟩
-
-end Matrix
-
 namespace Quantum
 
 namespace MatrixMap
