@@ -125,7 +125,7 @@ theorem norm_mul_commutator_le (X Y Z : Matrix A A ℂ) :
 the sum of the norms of the commutators of `X` with the factors. -/
 theorem norm_commutator_list_prod_le (X : Matrix A A ℂ) (l : List (Matrix A A ℂ))
     (hl : ∀ Y ∈ l, ‖Y‖ ≤ 1) : ‖⁅X, l.prod⁆‖ ≤ (l.map fun Y ↦ ‖⁅X, Y⁆‖).sum :=
-  norm_lie_list_prod_le l2_opNorm_one_le X l hl
+  norm_lie_list_prod_le X l hl
 
 /-- The action of a commutator on a vector. -/
 theorem commutator_applyVec (X Y : Matrix A A ℂ) (ψ : EuclideanSpace ℂ A) :

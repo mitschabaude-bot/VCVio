@@ -68,15 +68,23 @@ theorem List.norm_prod_le_one (h1 : ‖(1 : R)‖ ≤ 1) (l : List R) (hl : ∀ 
 /-- Telescoped Leibniz bound: the commutator of `a` with a product of elements of norm at most
 one is bounded by the sum of the norms of the commutators of `a` with the factors. The hypothesis
 on the unit holds in every norm-one ring, and in the zero ring. -/
-theorem norm_lie_list_prod_le (h1 : ‖(1 : R)‖ ≤ 1) (a : R) (l : List R)
+theorem norm_lie_list_prod_le (a : R) (l : List R)
     (hl : ∀ b ∈ l, ‖b‖ ≤ 1) : ‖⁅a, l.prod⁆‖ ≤ (l.map fun b ↦ ‖⁅a, b⁆‖).sum := by
   induction l with
   | nil => simp [Ring.lie_one]
   | cons b l ih =>
     have hl' : ∀ c ∈ l, ‖c‖ ≤ 1 := fun c hc ↦ hl c (List.mem_cons_of_mem b hc)
-    rw [List.prod_cons, List.map_cons, List.sum_cons]
-    refine (norm_lie_mul_le a b l.prod).trans (add_le_add ?_ ?_)
-    · exact mul_le_of_le_one_right (norm_nonneg _) (List.norm_prod_le_one h1 l hl')
-    · exact (mul_le_of_le_one_left (norm_nonneg _) (hl b List.mem_cons_self)).trans (ih hl')
+    cases l with
+    | nil => simp
+    | cons c l =>
+      have hprod : ‖(c :: l).prod‖ ≤ 1 :=
+        (List.norm_prod_le' (List.cons_ne_nil c l)).trans <|
+          (le_abs_self _).trans <| List.norm_prod_le_one (R := ℝ) (by norm_num)
+            ((c :: l).map norm) (by
+            simpa using hl')
+      rw [List.prod_cons, List.map_cons, List.sum_cons]
+      refine (norm_lie_mul_le a b (c :: l).prod).trans (add_le_add ?_ ?_)
+      · exact mul_le_of_le_one_right (norm_nonneg _) hprod
+      · exact (mul_le_of_le_one_left (norm_nonneg _) (hl b List.mem_cons_self)).trans (ih hl')
 
 end SeminormedRing
