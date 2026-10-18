@@ -21,9 +21,8 @@ post-state gives exactly `½ δ₀`, preserving its missing mass.
 A measurement whose output register depends on the outcome, keeping the qubit on outcome `0` and
 discarding it to `Unit` on outcome `1`, is a lossless dependent subinstrument with the uniform
 outcome measure on `|+⟩⟨+|`. Sequencing it with a continuation whose input register depends on the
-first outcome is lossless. The computational-basis measurement is definitionally a dependent
-subinstrument with constant output system, so the same losslessness and outcome-measure API
-applies directly.
+first outcome is lossless, and the computational-basis measurement is directly a dependent
+subinstrument with a constant output system, with the same losslessness and outcome measure.
 
 Outcomes need not be finitely many: the instrument on a qubit that reports `n : ℕ` with weight
 `2^{-(n+1)}` scales its post-state by that weight, preserving the normalized conditional state.
@@ -366,7 +365,7 @@ example : (measureZ : DSubInstrument (Fin 2) (Fin 2) (fun _ ↦ Fin 2)).Lossless
   lossless_measureZ
 
 /-- A dependent unit law rewrites a constant-codomain subinstrument directly. -/
-example : measureZ.bind (DSubInstrument.ret (fun _ ↦ Fin 2)) = measureZ := by
+example : measureZ.bind SubInstrument.pure = measureZ := by
   rw [DSubInstrument.bind_ret]
 
 /-- The constant-codomain measurement is definitionally the dependent Kraus measurement. -/
@@ -390,7 +389,7 @@ example : SubInstrument.ofIsTNISum measureZ.branch measureZ.isCP_branch measureZ
 
 /-- Losslessness of the measurement also gives trace preservation of its total map. -/
 example : measureZ.total.IsTP :=
-  (DSubInstrument.lossless_iff_isTP_total measureZ).mp lossless_measureZ
+  measureZ.lossless_iff_isTP_total.mp lossless_measureZ
 
 /-- Do notation on a fixed register sequences quantum computations with the usual unit law. -/
 example : (do
