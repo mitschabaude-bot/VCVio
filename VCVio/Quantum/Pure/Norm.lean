@@ -41,7 +41,7 @@ variable {A B ι : Type*} [Fintype A] [DecidableEq A] [Fintype B]
 
 /-- The difference of two squares of nonnegative reals, bounded through bounds on the reals and
 on their difference. -/
-theorem abs_sq_sub_sq_le {x y a b d : ℝ} (hx : 0 ≤ x) (hy : 0 ≤ y) (hxa : x ≤ a) (hyb : y ≤ b)
+private theorem abs_sq_sub_sq_le {x y a b d : ℝ} (hx : 0 ≤ x) (hy : 0 ≤ y) (hxa : x ≤ a) (hyb : y ≤ b)
     (hd : |x - y| ≤ d) : |x ^ 2 - y ^ 2| ≤ (a + b) * d := by
   have h : x ^ 2 - y ^ 2 = (x + y) * (x - y) := by ring
   rw [h, abs_mul, abs_of_nonneg (add_nonneg hx hy)]
