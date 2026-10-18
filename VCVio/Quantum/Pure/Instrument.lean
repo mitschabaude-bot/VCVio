@@ -157,7 +157,7 @@ theorem branch_ofContraction (K : Matrix B A ℂ) (hK : ‖K‖ ≤ 1) :
 @[simp]
 theorem total_ofContraction (K : Matrix B A ℂ) (hK : ‖K‖ ≤ 1) :
     (ofContraction K hK).total = MatrixMap.conj K :=
-  total_ofMap ..
+  DSubInstrument.total_ofMap ..
 
 /-- The subinstrument of an isometry is lossless. -/
 theorem lossless_ofContraction {K : Matrix B A ℂ} (hK : ‖K‖ ≤ 1) (h : Kᴴ * K = 1) :
@@ -277,7 +277,8 @@ theorem branch_ofProjectiveFinset_apply (a : α) :
 
 /-- A complete finitely supported projective measurement preserves trace. -/
 theorem lossless_ofProjectiveFinset : (ofProjectiveFinset P hP s hs hsum).Lossless := by
-  rw [lossless_iff_isTP_total, total_eq_sum _ (s := s) (fun a ha ↦ by simp [hs a ha])]
+  apply (DSubInstrument.lossless_iff_isTP_total _).mpr
+  rw [DSubInstrument.total_eq_sum _ (s := s) (fun a ha ↦ by simp [hs a ha])]
   intro ρ
   simp_rw [LinearMap.sum_apply, Matrix.trace_sum, branch_ofProjectiveFinset_apply,
     MatrixMap.trace_conj_apply]

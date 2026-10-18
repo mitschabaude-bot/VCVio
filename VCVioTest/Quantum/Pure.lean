@@ -74,6 +74,25 @@ noncomputable def measureNat : SubInstrument (Fin 2) (Fin 2) ℕ :=
   SubInstrument.ofProjectiveFinset natProj isStarProjection_natProj {0, 1}
     natProj_eq_zero sum_natProj
 
+/-- Relabelling a projective measurement infers its output register before observing branches. -/
+noncomputable example (f : ℕ → ℝ) := (measureNat.map f).branch
+
+/-- Losslessness of a projective measurement supports constant-output relabelling. -/
+example (f : ℕ → ℝ) : (measureNat.map f).Lossless := by
+  have hp : measureNat.Lossless :=
+    SubInstrument.lossless_ofProjectiveFinset natProj isStarProjection_natProj {0, 1}
+      natProj_eq_zero sum_natProj
+  exact hp.map f
+
+/-- Total-map rewriting composes with constant mapping and the dependent right unit law. -/
+example (f : ℕ → ℝ) :
+    ((measureNat.map f).bind SubInstrument.pure).total = measureNat.total := by
+  rw [DSubInstrument.bind_ret, DSubInstrument.total_map]
+
+/-- A framed projective measurement exposes its amplified total map through field notation. -/
+example : (measureNat.frame (Fin 2)).total = measureNat.total.amplify (Fin 2) := by
+  rw [DSubInstrument.total_frame]
+
 /-- Both projections in the natural-labelled support are nonzero. -/
 example : natProj 0 ≠ 0 ∧ natProj 1 ≠ 0 := by
   constructor
