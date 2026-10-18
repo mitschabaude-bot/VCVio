@@ -21,10 +21,13 @@ countability assumption is made on `ι`; only countably many branches are nonzer
 
 The branches have different codomains, so they cannot be summed as maps. Trace nonincrease is
 stated through traces, and the trace functional `Quantum.MatrixMap.familyTrace`,
-`ρ ↦ ∑' i, trace (branch i ρ)`, plays the role of the trace of the total map. Mathematically a
-dependent subinstrument is one completely positive, trace-nonincreasing map into the direct sum
-`⊕ i, M_{B i}` of matrix algebras. It is not a map into the matrix algebra on the disjoint union
-`Σ i, B i`, which would allow coherences between outcomes.
+`ρ ↦ ∑' i, trace (branch i ρ)`, plays the role of the trace of the total map. With finitely many
+outcomes, a dependent subinstrument is one completely positive, trace-nonincreasing map into the
+block-diagonal algebra `⊕ i, M_{B i}`. With infinitely many outcomes its outputs are families of
+blocks with summable traces, and this file works with the families directly rather than with a
+completed direct sum. In either case there are no off-diagonal blocks between different
+outcomes: outcomes are classical alternatives and cannot interfere. In particular a dependent
+subinstrument is not a map into the matrix algebra on the disjoint union `Σ i, B i`.
 
 Sequencing is Kleisli composition of branch families (`Quantum.MatrixMap.familyBind`), with unit
 the single identity branch `Quantum.DSubInstrument.ret`. The unit and associativity laws are
@@ -58,11 +61,14 @@ namespace Quantum
 
 /-! ## Dependent subinstruments -/
 
-/-- A dependent subinstrument from the system with basis `A`, with classical outcomes `i : ι` and
-output system `B i` on outcome `i`: a family of completely positive maps
-`branch i : MatrixMap A (B i)` such that, on positive semidefinite inputs, the traces of the
-branches over every finite set of outcomes sum to at most the trace of the input. It is one
-completely positive, trace-nonincreasing map into the direct sum `⊕ i, M_{B i}`. -/
+/-- A subinstrument whose output system depends on the outcome: completely positive maps
+`branch i : M_A → M_{B i}` with `∑ i ∈ s, tr (branch i ρ) ≤ tr ρ` for every finite set `s` and
+every positive semidefinite `ρ`. For example, a measurement may keep a qubit on one outcome and
+discard it on another (output system `Unit`, which is one-dimensional).
+
+Only countably many branches are nonzero. Outcomes are classical: there are no off-diagonal blocks
+between different output systems. `SubInstrument.equivD` identifies subinstruments with the case
+of a constant output system. -/
 @[ext]
 structure DSubInstrument (A : Type*) [Fintype A] (ι : Type*) (B : ι → Type*)
     [∀ i, Fintype (B i)] where
