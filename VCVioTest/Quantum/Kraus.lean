@@ -173,4 +173,96 @@ example [Fintype A] (b : A) :
     (L := fun _ b _ ↦ Matrix.single b b 1) (fun _ ↦ by simp [measure])
     (fun _ _ ↦ by simp [measure]) b
 
+/-! ## Phase and tensor-order calculations -/
+
+/-- A rectangular Kraus operator with a non-real entry. -/
+def phaseRect : Matrix (Fin 3) (Fin 2) ℂ :=
+  !![1, Complex.I; 0, 0; 0, 0]
+
+-- K = [[1, i], [0, 0], [0, 0]]. In output-first order
+-- (0,0), (0,1), (1,0), (1,1), (2,0), (2,1), its Choi matrix has upper-left block
+-- [[1, -i], [i, 1]] and all other entries zero. Input-first order moves the i entries.
+/-- The exact rectangular Choi matrix records conjugation and output-first tensor order. -/
+example :
+    MatrixMap.choi (MatrixMap.conj phaseRect) =
+      (!![1, -Complex.I, 0, 0, 0, 0;
+          Complex.I, 1, 0, 0, 0, 0;
+          0, 0, 0, 0, 0, 0;
+          0, 0, 0, 0, 0, 0;
+          0, 0, 0, 0, 0, 0;
+          0, 0, 0, 0, 0, 0] : Matrix (Fin 6) (Fin 6) ℂ).submatrix
+        finProdFinEquiv finProdFinEquiv := by
+  ext ⟨b, a⟩ ⟨b', a'⟩
+  fin_cases b <;> fin_cases a <;> fin_cases b' <;> fin_cases a' <;>
+    simp [MatrixMap.choi_apply, MatrixMap.conj_apply, phaseRect, Matrix.mul_apply,
+      Matrix.single_apply, Matrix.vecMul, dotProduct, finProdFinEquiv, Matrix.submatrix_apply]
+
+/-! ## Stinespring calculation -/
+
+-- K₀ = [[1, 0], [0, 0]], K₁ = [[0, 0], [0, 1]], so
+-- S = [[1, 0], [0, 0], [0, 0], [0, 1]] in output-first order.
+-- For ρ = [[a, b], [c, d]], SρS† has corner entries a, b, c, d and zeros elsewhere;
+-- tracing the right factor gives [[a, 0], [0, d]].
+/-- The qubit dephasing channel is recovered by a Stinespring operator and partial trace. -/
+example :
+    MatrixMap.traceRight (Fin 2) (Fin 2) ∘ₗ
+      MatrixMap.conj (MatrixMap.stinespring fun a : Fin 2 ↦ Matrix.single a a (1 : ℂ)) =
+        dephase := by
+  apply LinearMap.ext
+  intro ρ
+  ext b b'
+  fin_cases b <;> fin_cases b' <;>
+    simp [LinearMap.comp_apply, MatrixMap.traceRight_apply, MatrixMap.conj_apply,
+      MatrixMap.stinespring_apply, Matrix.mul_apply, Matrix.single_apply, dephase_apply]
+
+/-! ## Noncommuting Kraus paths -/
+
+/-- The bit-flip operator exchanges the two computational-basis vectors. -/
+def bitFlip : Matrix (Fin 2) (Fin 2) ℂ := !![0, 1; 1, 0]
+
+/-- The bit-flip operator is an isometry. -/
+theorem conjTranspose_bitFlip_mul : bitFlipᴴ * bitFlip = 1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;> simp [bitFlip, Matrix.mul_apply]
+
+/-- The single-outcome bit-flip instrument. -/
+noncomputable def flipInstrument : SubInstrument (Fin 2) (Fin 2) Unit :=
+  SubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
+
+/-- Postselection on the zero outcome of a computational-basis measurement. -/
+noncomputable def postselectZero : SubInstrument (Fin 2) (Fin 2) Unit :=
+  SubInstrument.ofMap (MatrixMap.conj (Matrix.single 0 0 1)) (MatrixMap.isCP_conj _)
+    (by simpa using (isCPTNIFamily_single (A := Fin 2)).isTNI_sum {0})
+
+-- P₀ = [[1, 0], [0, 0]] and X = [[0, 1], [1, 0]].
+-- The unique path has XP₀ = [[0, 0], [1, 0]], while P₀X = [[0, 1], [0, 0]].
+/-- Postselection followed by bit flip has the path operator `X * P₀`. -/
+theorem postselect_flip_path :
+    (postselectZero.bind fun _ ↦ flipInstrument).branch () =
+      MatrixMap.conj (bitFlip * Matrix.single 0 0 1) := by
+  have h := SubInstrument.branch_bind_eq_sum_conj_mul postselectZero (fun _ ↦ flipInstrument)
+    (K := fun _ _ : Unit ↦ Matrix.single 0 0 (1 : ℂ))
+    (L := fun _ _ _ : Unit ↦ bitFlip)
+    (fun _ ↦ by simp [postselectZero]) (fun _ _ ↦ by simp [flipInstrument]) ()
+  simpa using h
+
+-- On input P₀, the path XP₀ yields P₁ = [[0, 0], [0, 1]].
+-- Reversing the path product to P₀X yields the zero matrix on the same input.
+/-- The noncommuting path sends the zero basis state to the one basis state. -/
+example :
+    (postselectZero.bind fun _ ↦ flipInstrument).branch () (Matrix.single 0 0 1) =
+      Matrix.single 1 1 1 := by
+  rw [postselect_flip_path]
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [bitFlip, MatrixMap.conj_apply, Matrix.mul_apply, Matrix.single_apply,
+      Matrix.vecMul, dotProduct]
+
+/-- Reversing the operators of the same path annihilates the zero basis state. -/
+example :
+    MatrixMap.conj (Matrix.single 0 0 1 * bitFlip) (Matrix.single 0 0 1) = 0 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [bitFlip, MatrixMap.conj_apply, Matrix.mul_apply, Matrix.single_apply]
+
 end VCVioTest.QuantumKraus
