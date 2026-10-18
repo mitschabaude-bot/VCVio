@@ -12,29 +12,47 @@ public import VCVio.Quantum.SubInstrument
 /-!
 # Observing quantum computations
 
-Running a subinstrument on a state produces a classical outcome with a weight, the trace of the
-corresponding branch applied to the state. `Quantum.SubInstrument.outcomeMeasure` collects these
-weights into a Mathlib measure on the outcome type, the sum `Measure.sum` of the weighted point
-masses over all outcomes, and `Quantum.SubInstrument.post` is the unnormalized state left after a
-given outcome. The outcome type carries any measurable structure; the weight of a single outcome
-is read off under `MeasurableSingletonClass`
-(`Quantum.SubInstrument.outcomeMeasure_apply_singleton`). Since the branch family is summable
-rather than finitely supported, the outcome measure may charge infinitely many outcomes.
+A quantum computation is observed once, at the end, by the probabilities of its classical
+outcomes. Running the subinstrument `p` on the state `ρ` reports outcome `a` with weight
+`tr (p.branch a ρ)`. This is the Born rule. `Quantum.SubInstrument.outcomeMeasure p ρ` collects
+these weights into a Mathlib measure on the outcomes, the sum (`Measure.sum`) of weighted point
+masses, and `Quantum.SubInstrument.post p ρ a = p.branch a ρ` is the state left behind after
+outcome `a`.
 
-States are subnormalized (`Quantum.SubState`): trace at most one, the deficit being the weight of
-failure so far. The outcome measure therefore has total mass at most one, and the chain rule
-`Quantum.SubInstrument.outcomeMeasure_bind` expresses the outcome measure of a composite through
-the post-branch substates of its first part, with no renormalization.
+## Unnormalized post-states
 
-The bundled semantics built from the outcome measure, `Quantum.SubInstrument.semanticsVia`, is
-in `VCVio.Quantum.Semantics`.
+`post p ρ a` is not divided by the probability of `a`: its trace is that probability. When the
+probability is positive, the conditional state in the usual sense is `post p ρ a` divided by its
+trace. Keeping the weight inside the state has two consequences. Outcomes of probability zero need
+no separate case, since their post-state is zero. And the chain rule
+`Quantum.SubInstrument.outcomeMeasure_bind` evaluates the continuation on the unnormalized
+post-state, so the weight of the first outcome is already included and is not multiplied in again.
+
+## Subnormalized states and failure
+
+States are subnormalized (`Quantum.SubState`): their trace is at most one, and the deficit is the
+probability that the computation has already failed. The outcome measure has total mass
+`tr (p.total ρ) ≤ tr ρ ≤ 1`. Its deficit from one is the failure before `p` plus the trace `p`
+loses.
+
+The outcome type may carry any measurable structure. The weight of a single outcome is read off
+under `MeasurableSingletonClass` (`Quantum.SubInstrument.outcomeMeasure_apply_singleton`). The
+measure may charge infinitely many outcomes, but only countably many, so it never describes a
+measurement with continuous outcomes.
 
 Dependent subinstruments are observed in the same way. `Quantum.DSubInstrument.post` is the
-family of post-branch substates, one on the system `B i` for each outcome `i`, and
+family of post-states, one on the system `B i` for each outcome `i`, and
 `Quantum.DSubInstrument.outcomeMeasure` has the chain rule
 `Quantum.DSubInstrument.outcomeMeasure_bind`. Under the constant-codomain equivalence both agree
 with the versions for subinstruments (`Quantum.SubInstrument.post_toD`,
-`Quantum.SubInstrument.outcomeMeasure_toD`).
+`Quantum.SubInstrument.outcomeMeasure_toD`). The bundled semantics built from the outcome measure,
+`Quantum.SubInstrument.semanticsVia`, is in `VCVio.Quantum.Semantics`.
+
+## References
+
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018. Density
+  matrices: Definition 2.5, p. 62. Instruments, outcome probabilities and post-measurement states
+  in the normalized, finite case: equations (2.258)–(2.261), p. 112.
 -/
 
 public section
@@ -44,8 +62,11 @@ open scoped ComplexOrder
 
 namespace Quantum
 
-/-- A subnormalized state of the system with basis `A`: a positive semidefinite matrix of trace
-at most one. Trace below one records the weight of failure. -/
+/-- A subnormalized state of the system `A`: a positive semidefinite matrix `ρ` with
+`tr ρ ≤ 1`. Its trace is real and nonnegative because `ρ` is positive semidefinite. Trace one
+is a density matrix in the usual sense (Watrous, *The Theory of Quantum Information*,
+Definition 2.5, p. 62); trace zero forces `ρ = 0`. The deficit `1 - tr ρ` is the probability
+that the computation has already failed. -/
 @[ext]
 structure SubState (A : Type*) [Fintype A] where
   /-- The unnormalized density matrix. -/
@@ -66,8 +87,11 @@ variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
 
 /-! ## Post-branch substates -/
 
-/-- The substate left after the subinstrument reports outcome `a` on `ρ`: the unnormalized
-state `p.branch a ρ`, whose trace is the weight of that outcome. -/
+/-- The state left after `p` reports outcome `a` on `ρ`: the unnormalized matrix
+`p.branch a ρ`. Its trace is the probability of `a`, which is therefore already included. When
+that probability `w` is positive, the conditional state in the usual sense is
+`p.branch a ρ / w`; no division happens here, so an outcome of probability zero leaves the zero
+substate. -/
 @[expose]
 def post (p : SubInstrument A B α) (ρ : SubState A) (a : α) : SubState B where
   matrix := p.branch a ρ.matrix
@@ -88,10 +112,12 @@ theorem post_pure_self (a : α) (ρ : SubState A) :
 
 /-! ## Outcome measures -/
 
-/-- The measure of classical outcomes of a subinstrument run on the substate `ρ`: outcome `a`
-has weight the trace of `p.branch a ρ`, and the outcome measure is the sum of the weighted point
-masses over all outcomes. Its total mass is the trace of the total map on `ρ`, and missing mass is
-failure. -/
+/-- The distribution of the outcome of `p` on `ρ`, by the Born rule: `∑ a, tr (p.branch a ρ) • δ_a`,
+as a `Measure.sum` of point masses. For a normalized `ρ` the weights are outcome probabilities.
+
+The total mass is `tr (p.total ρ) ≤ tr ρ ≤ 1`, and missing mass is failure, both before and
+during `p`. Only countably many outcomes are charged. The weight of one outcome is read off under
+`MeasurableSingletonClass` (`outcomeMeasure_apply_singleton`). -/
 @[expose]
 noncomputable def outcomeMeasure [MeasurableSpace α] (p : SubInstrument A B α)
     (ρ : SubState A) : Measure α :=
@@ -185,8 +211,12 @@ theorem outcomeMeasure_fail (ρ : SubState A) :
 
 end outcomeMeasure
 
-/-- Chain rule: the outcome measure of a composite sums, over the outcomes of the first
-subinstrument, the outcome measure of the continuation on the post-branch substate. -/
+/-- Chain rule: the distribution of the outcome of `p.bind k` on `ρ` is the sum, over the outcomes
+`a` of `p`, of the distribution of the outcome of `k a` on the post-state `p.post ρ a`. On a final
+event `E`, its weight is `∑' a, ∑' b ∈ E, tr ((k a).branch b (p.branch a ρ))`.
+
+The post-state is unnormalized and already carries the probability of `a`, so no further factor
+for that probability appears. The intermediate outcomes need no measurable structure. -/
 theorem outcomeMeasure_bind [MeasurableSpace β] (p : SubInstrument A B α)
     (k : α → SubInstrument B C β) (ρ : SubState A) :
     (p.bind k).outcomeMeasure ρ = Measure.sum fun a ↦ (k a).outcomeMeasure (p.post ρ a) := by
@@ -213,9 +243,10 @@ variable {A : Type*} [Fintype A] {ι κ : Type*} {B : ι → Type*} [∀ i, Fint
 
 /-! ### Post-branch substates -/
 
-/-- The substate left after the dependent subinstrument reports outcome `i` on `ρ`: the
-unnormalized state `p.branch i ρ` of the system `B i`, whose trace is the weight of that
-outcome. -/
+/-- The state left after `p` reports outcome `i` on `ρ`: the unnormalized matrix `p.branch i ρ` of
+the system `B i`. Its trace is the probability of `i`, which is therefore already included. When
+that probability `w` is positive, the conditional state in the usual sense is `p.branch i ρ / w`; no
+division happens here, so an outcome of probability zero leaves the zero substate. -/
 @[expose]
 def post (p : DSubInstrument A ι B) (ρ : SubState A) (i : ι) : SubState (B i) where
   matrix := p.branch i ρ.matrix
@@ -235,10 +266,12 @@ theorem post_ret_self (i : ι) (ρ : SubState (B i)) : (ret B i).post ρ i = ρ 
 
 /-! ### Outcome measures -/
 
-/-- The measure of classical outcomes of a dependent subinstrument run on the substate `ρ`:
-outcome `i` has weight the trace of `p.branch i ρ`, and the outcome measure is the sum of the
-weighted point masses over all outcomes. Its total mass is the trace functional of the branches at
-`ρ`, and missing mass is failure. -/
+/-- The distribution of the outcome of `p` on `ρ`, by the Born rule: `∑ i, tr (p.branch i ρ) • δ_i`,
+as a `Measure.sum` of point masses. For a normalized `ρ` the weights are outcome probabilities.
+
+The total mass is `MatrixMap.familyTrace p.branch ρ ≤ tr ρ ≤ 1`, and missing mass is failure, both
+before and during `p`. Only countably many outcomes are charged. The weight of one outcome is read
+off under `MeasurableSingletonClass` (`outcomeMeasure_apply_singleton`). -/
 @[expose]
 noncomputable def outcomeMeasure [MeasurableSpace ι] (p : DSubInstrument A ι B)
     (ρ : SubState A) : Measure ι :=

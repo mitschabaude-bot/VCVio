@@ -11,11 +11,18 @@ public import VCVio.Quantum.Observe
 /-!
 # Bundled semantics of subinstruments
 
-`Quantum.SubInstrument.semanticsVia` packages the outcome measure of subinstruments on a register,
-from a fixed initial substate, as a bundled `SemanticsVia` on the monad `SubInstrument M M`.
-Observation fixes the initial state and discards the final one, so it is not a monad morphism.
+`Quantum.SubInstrument.semanticsVia ρ₀` presents subinstruments on a register `M` as a VCVio
+`SemanticsVia`, so that the generic VCVio notions of probability and equivalence apply to them.
+Its three parts are: the semantic monad `SubInstrument M M`; the identity interpretation into it;
+and the observation `p ↦ p.outcomeMeasure ρ₀`, which runs `p` from the fixed initial substate
+`ρ₀`, keeps the distribution of the classical outcome and discards the final quantum state.
 
-This is the only part of the quantum core that depends on the rest of VCVio: the outcome measure
+The interpretation is a monad morphism; the observation is not. The distribution of the outcome of
+`p.bind k` depends on the quantum state that `p` leaves behind, which the distribution of the
+outcome of `p` forgets. The composition law is the chain rule
+`Quantum.SubInstrument.outcomeMeasure_bind`.
+
+This is the only part of the quantum core that imports the rest of VCVio; the outcome measure
 itself is defined in `VCVio.Quantum.Observe`.
 -/
 
@@ -29,9 +36,10 @@ namespace SubInstrument
 
 variable {M : Type u} [Fintype M]
 
-/-- The bundled semantics of subinstruments on the register `M` started from the substate `ρ₀`:
-a subinstrument is observed through the measure of its classical results, and the final state
-of the register is discarded. -/
+/-- Subinstruments on the register `M`, observed from the initial substate `ρ₀`: the semantic
+monad is `SubInstrument M M`, the interpretation is the identity, and the observation is
+`p ↦ p.outcomeMeasure ρ₀`, which keeps the distribution of the classical outcome and discards the
+final quantum state. The observation does not preserve `bind`; see `outcomeMeasure_bind`. -/
 @[expose]
 noncomputable def semanticsVia (ρ₀ : SubState M) : SemanticsVia (SubInstrument.{u, u, w} M M) where
   Sem := SubInstrument M M

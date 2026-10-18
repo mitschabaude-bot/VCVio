@@ -32,8 +32,10 @@ topology is put on spaces of linear maps.
   semidefinite inputs the traces of the members over every finite set of labels sum to at most
   the trace of the input. The codomain of `Φ i` may depend on `i`.
 * `Quantum.MatrixMap.familySum Φ`: the pointwise sum `ρ ↦ ∑' i, Φ i ρ` of a family with a common
-  codomain, as a matrix map.
-* `Quantum.MatrixMap.familyTrace Φ`: the trace functional `ρ ↦ ∑' i, trace (Φ i ρ)`.
+  codomain, when that sum converges on every input, and `0` otherwise.
+* `Quantum.MatrixMap.familyTrace Φ`: the trace functional `ρ ↦ ∑' i, trace (Φ i ρ)`, when the
+  traces are summable on every input, and `0` otherwise. Neither fallback is reached by a
+  completely positive family with trace-nonincreasing partial sums.
 * `Quantum.MatrixMap.familyBind Φ Ψ`: Kleisli composition of families, the family whose member at
   `c` is `familySum fun i ↦ Ψ i c ∘ₗ Φ i`.
 
@@ -197,10 +199,13 @@ section IsCPTNIFamily
 
 variable [Fintype A] {B : ι → Type*} [∀ i, Fintype (B i)] {C : κ → Type*} [∀ c, Fintype (C c)]
 
-/-- A family of matrix maps, whose codomain may depend on the label, is completely positive and
-trace nonincreasing when every member is completely positive and, on positive semidefinite
-inputs, the traces of the members over every finite set of labels sum to at most the trace of
-the input. These are the branch families of subinstruments. -/
+/-- A family of completely positive maps whose finite partial sums are jointly trace
+nonincreasing: `∑ i ∈ s, tr (Φ i ρ) ≤ tr ρ` for every finite set `s` and every positive
+semidefinite `ρ`. The output system of `Φ i` may depend on `i`.
+
+The bound is joint, not per member: two copies of the identity map form no such family. These
+are the branch families of the instruments in `VCVio.Quantum.SubInstrument` and
+`VCVio.Quantum.DSubInstrument`. -/
 structure IsCPTNIFamily (Φ : (i : ι) → MatrixMap A (B i)) : Prop where
   /-- Every member is completely positive. -/
   isCP : ∀ i, (Φ i).IsCP
@@ -574,11 +579,11 @@ section familyTrace
 variable {B : ι → Type*} [∀ i, Fintype (B i)]
 
 open Classical in
-/-- The trace functional `ρ ↦ ∑' i, trace (Φ i ρ)` of a family of matrix maps whose codomain may
-depend on the label. It is the trace on the direct sum `⊕ i, M_{B i}` after the map whose
-components are the members of the family. It is defined to be zero when the traces are not
-summable on some input; for a completely positive family with trace-nonincreasing partial sums
-they always are (`Quantum.MatrixMap.IsCPTNIFamily.familyTrace_apply`). -/
+/-- The total trace of a family of maps whose output system may depend on the label:
+`ρ ↦ ∑' i, tr (Φ i ρ)`. The output matrices have different types and cannot be added, but their
+traces can. When the traces are not summable on some input, the functional is `0` everywhere;
+`IsCPTNIFamily.summable_trace_apply` shows this never happens for a physical branch family. For
+finitely many labels it is the trace of the block-diagonal output. -/
 @[expose]
 noncomputable def familyTrace (Φ : (i : ι) → MatrixMap A (B i)) : Matrix A A ℂ →ₗ[ℂ] ℂ :=
   if h : ∀ ρ, Summable fun i ↦ (Φ i ρ).trace then

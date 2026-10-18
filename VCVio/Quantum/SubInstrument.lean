@@ -11,53 +11,69 @@ public import VCVio.Quantum.MatrixMap.Kraus
 /-!
 # Subinstruments and quantum computations
 
-A subinstrument from the system with basis `A` to the system with basis `B`, with classical
-outcomes in `α`, is a family of completely positive maps `branch a : MatrixMap A B`, one for each
-outcome, whose finite partial sums are trace nonincreasing on positive semidefinite inputs.
-Running it on a state `ρ` yields outcome `a` together with the unnormalized state `branch a ρ`,
-whose trace is the weight of that outcome; trace lost by the sum of all branches is the weight of
-failure.
+A quantum computation that reports classical outcomes is described by an *instrument*: one
+completely positive map per outcome. Run on a state `ρ`, it reports outcome `a` and leaves the
+state `branch a ρ`. This state is unnormalized: its trace is the probability of `a`. A computation
+that may fail loses trace instead of reporting a failure outcome, so its branches need only be
+jointly trace nonincreasing. Such a family is a *subinstrument*, and the trace it loses is the
+probability of failure. A subinstrument whose branches sum to a trace-preserving map is
+*lossless*, and is an instrument in the usual sense.
 
-## Summable outcome families
+`Quantum.SubInstrument A B α` has input system `A`, output system `B` and outcomes in `α`.
+It is the countably supported, possibly lossy form of the finite instruments of Watrous,
+*The Theory of Quantum Information*, equations (2.258)–(2.261), p. 112.
 
-The branch family is an arbitrary function on `α`, not a finitely supported one. Trace
-nonincrease of the finite partial sums makes it summable on every input
-(`Quantum.MatrixMap.IsCPTNIFamily.summable_apply`), its support is countable
-(`Quantum.SubInstrument.countable_support_branch`), and its sum `Quantum.SubInstrument.total` is
+## How computations compose
+
+On a fixed register `M`, `SubInstrument M M` is a lawful monad, and the operations mean what they
+mean for `OracleComp`, with completely positive maps in place of probabilities:
+
+* `pure a` reports `a` and leaves the state unchanged.
+* `p.bind k` runs `p`, and on outcome `a` runs `k a` on the state `p` left behind:
+  `(p.bind k).branch b ρ = ∑' a, (k a).branch b (p.branch a ρ)`.
+* `map f p` relabels outcomes. Outcomes with the same image are merged by adding their branches.
+  This forgets classical information; it is not quantum interference.
+* `fail` reports nothing: every branch is zero.
+* `p.frame R` runs `p` beside an untouched reference system `R`, as `branch a ⊗ id_R`.
+
+`bind` passes the residual quantum state to the continuation. This is why a quantum computation
+cannot be summarized by the probabilities of its outcomes.
+
+## Infinitely many outcomes
+
+The branches form an arbitrary function on `α`, not a finitely supported one. Trace nonincrease
+of the finite partial sums makes the family summable on every input
+(`Quantum.MatrixMap.IsCPTNIFamily.summable_apply`), only countably many branches are nonzero
+(`Quantum.SubInstrument.countable_support_branch`), and the sum `Quantum.SubInstrument.total` is
 completely positive and trace nonincreasing. No countability assumption is made on `α`.
 
-Infinitely many outcomes are needed for loops. A loop with a classical guard, such as "measure
-`|+⟩` until the outcome is `0` and return the number of rounds", has outcomes on all of `ℕ`, and
-its semantics is the limit of its finite unrollings. A limit of finitely supported instruments
-need not be finitely supported, so finite support is not closed under the constructions a loop
-needs. Finitely supported instruments remain the special case: a family that vanishes outside a
-finite set `s` has total map the finite sum over `s` (`Quantum.SubInstrument.total_eq_sum`), and
-every finite construction here (`pure`, `ofMap`, `ofKraus` over a finite type) produces one.
-
-Sequencing is Kleisli composition of branch families,
-`(p.bind k).branch b ρ = ∑' a, (k a).branch b (p.branch a ρ)`, with unit the single identity
-branch. Associativity exchanges two summations; the joint summability it needs comes from
-positivity (`Quantum.MatrixMap.IsCPTNIFamily.prod`).
+Infinitely many outcomes are what loops produce. At each round, prepare a fresh `|+⟩`, measure it in
+the computational basis, and stop on `0`, returning the number of rounds: the loop stops after round
+`n` with probability `2^{-n}`, so every positive `n : ℕ` is an outcome. Loops are not defined in
+this library. Their semantics would be the limit of their finite unrollings, and a limit of finitely
+supported instruments need not be finitely supported, which is why the model does not require finite
+support. A family that vanishes outside a finite set `s` has total map the finite sum over `s`
+(`Quantum.SubInstrument.total_eq_sum`), and `pure`, `ofMap` and `ofKraus` over a finite type produce
+such families.
 
 ## Main definitions
 
-* `Quantum.SubInstrument A B α`: subinstruments, with `pure`, `bind`, `map`, `fail`.
-* `Quantum.SubInstrument.total`: the sum of the branches, the action when the outcome is
-  discarded.
+* `Quantum.SubInstrument A B α`, with `pure`, `bind`, `map`, `fail` and `frame`.
+* `Quantum.SubInstrument.total`: the sum of the branches, which is the action when the outcome
+  is discarded.
 * `Quantum.SubInstrument.Lossless`: the total map is trace preserving.
-* `Quantum.SubInstrument.ofMap`, `Quantum.SubInstrument.ofKraus`: a single completely positive
-  map, and the measurement given by a complete family of Kraus operators.
-* `Quantum.SubInstrument.frame`: the action on a system extended by an untouched ancilla.
-* `Quantum.SubInstrument M M`: subinstruments from a register `M` to itself form a lawful monad,
-  the semantic domain of quantum programs on that register.
+* `Quantum.SubInstrument.ofMap`: the one-outcome subinstrument of a completely positive
+  trace-nonincreasing map.
+* `Quantum.SubInstrument.ofKraus`: the measurement with Kraus operators `K a`, one per outcome of a
+  finite type, satisfying `∑ a, (K a)† * K a = 1`.
 
 ## Outcome-dependent output systems
 
 Here every branch has the same output system `B`. `Quantum.DSubInstrument A ι B`, in
 `VCVio.Quantum.DSubInstrument`, lets the output system `B i` depend on the outcome `i`.
-Subinstruments are exactly its constant-codomain case: `Quantum.SubInstrument.equivD` is an
-equivalence `SubInstrument A B α ≃ DSubInstrument A α (fun _ ↦ B)` that commutes with `pure`,
-`bind`, `map`, `fail` and `frame`.
+Subinstruments are exactly its constant case: `Quantum.SubInstrument.equivD` is an equivalence
+`SubInstrument A B α ≃ DSubInstrument A α (fun _ ↦ B)` that commutes with `pure`, `bind`, `map`,
+`fail` and `frame`.
 -/
 
 public section
@@ -69,9 +85,16 @@ universe u w
 
 namespace Quantum
 
-/-- A subinstrument from the system with basis `A` to the system with basis `B` with classical
-outcomes in `α`: a family of completely positive maps, one for each outcome, whose finite partial
-sums are trace nonincreasing on positive semidefinite inputs. -/
+/-- A subinstrument from the system `A` to the system `B` with classical outcomes in `α`:
+completely positive maps `branch a : M_A → M_B`, one per outcome, with
+`∑ a ∈ s, tr (branch a ρ) ≤ tr ρ` for every finite set `s` and every positive semidefinite `ρ`.
+
+Run on a state `ρ`, it reports `a` with probability `tr (branch a ρ)` and leaves the unnormalized
+state `branch a ρ`. The trace lost by all branches together is the probability of failure.
+The finite-sum condition makes the family summable on every input, with countably many nonzero
+branches, although `α` is arbitrary. `Lossless` says no trace is lost; a lossless subinstrument
+with finitely many outcomes is an instrument in the sense of Watrous, *The Theory of Quantum
+Information*, equations (2.258)–(2.261), p. 112. -/
 @[ext]
 structure SubInstrument (A B : Type*) [Fintype A] [Fintype B] (α : Type*) where
   /-- The map applied to the state on outcome `a`. -/
@@ -138,10 +161,6 @@ theorem trace_re_total_apply (p : SubInstrument A B α) (ρ : Matrix A A ℂ) :
 /-- The total map of a subinstrument is trace nonincreasing on positive semidefinite inputs. -/
 theorem isTNI_total (p : SubInstrument A B α) : p.total.IsTNI :=
   p.isCPTNIFamily.isTNI_familySum
-
-/-- The total map of a subinstrument is trace nonincreasing on positive semidefinite inputs. -/
-theorem isTNI_total' (p : SubInstrument A B α) : p.total.IsTNI :=
-  p.isTNI_total
 
 /-- A subinstrument is lossless when the sum of its branches is trace preserving: it never
 fails. -/
