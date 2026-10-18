@@ -10,20 +10,27 @@ public import VCVio.Quantum.Pure.Instrument
 /-!
 # Operators on one register of a product
 
-An operator `K` on the system `A` acts on the product system `A × R` as the Kronecker product
-`K ⊗ₖ 1`, and on `R × A` as `1 ⊗ₖ K`. Either has the operator norm of `K` when the untouched
-register is nonempty (`Quantum.l2_opNorm_kronecker_one`, `Quantum.l2_opNorm_one_kronecker`), and
-norm at most `‖K‖` in general (`Quantum.l2_opNorm_kronecker_one_le`), so contractions,
-isometries and the norm estimates for vectors transfer to an operator that leaves a register
-untouched. Framing a subinstrument built from Kraus operators by an ancilla
-(`Quantum.SubInstrument.frame`) is the subinstrument built from the operators `K ⊗ₖ 1`
+The product system `A × R` has state space `ℂ^A ⊗ ℂ^R`, in that order. The product vector
+`ψ ⊗ᵥ χ` (`Quantum.tensorVec`) has coefficient `ψ a * χ r` at `(a, r)`, and Kronecker products of
+operators follow the same order: `(K ⊗ₖ L) (b, s) (a, r) = K b a * L s r`.
+
+An operator `K` on `A` acts on `A × R` as `K ⊗ₖ 1`, leaving `R` untouched. This is the vector form
+of `Quantum.SubInstrument.frame R`, which puts the untouched register on the right: framing
+neither prepares nor discards `R`, and the input may be entangled with it
 (`Quantum.SubInstrument.frame_ofContraction`, `Quantum.SubInstrument.frame_ofKraus`).
+
+The norm of `K ⊗ₖ 1` is the norm of `K` when `R` is nonempty (`Quantum.l2_opNorm_kronecker_one`),
+and at most the norm of `K` in general (`Quantum.l2_opNorm_kronecker_one_le`; it is `0` when `R`
+is empty). The norm is taken over all vectors on `A × R`, entangled ones included. So
+contractions, isometries and the norm estimates of `VCVio.Quantum.Pure.Norm` hold for an operator
+that leaves a register untouched. `1 ⊗ₖ K`, with the untouched register on the left, has the same
+norm (`Quantum.l2_opNorm_one_kronecker`).
 
 ## Main definitions
 
 * `Quantum.tensorVec ψ χ`, written `ψ ⊗ᵥ χ`: the product vector on `A × R`.
-* `Quantum.sliceRight x r`: the component of a vector on `A × R` at the basis state `r` of the
-  second register.
+* `Quantum.sliceRight x r`: the vector `a ↦ x (a, r)`, the coefficients of `x` at the basis state
+  `r` of the right register. It is not a partial trace, and `x` may be entangled.
 -/
 
 public section

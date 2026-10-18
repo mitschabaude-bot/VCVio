@@ -9,37 +9,54 @@ public import VCVio.Quantum.Pure.Norm
 public import VCVio.Quantum.Pure.State
 
 /-!
-# Subinstruments on pure substates
+# Kraus branches on pure states
 
-Subinstruments built from Kraus operators send pure substates to pure substates, so their outcome
-measures and post-branch substates can be computed with vectors.
+A branch with a single Kraus operator, `ρ ↦ K ρ K†`, sends the pure substate `|ψ⟩⟨ψ|` to the pure
+substate `|Kψ⟩⟨Kψ|`. So the probability of the branch is `‖K •ᵥ ψ‖²` (the Born rule), and the state
+it leaves is described by the vector `K •ᵥ ψ`. As in the core, this state is unnormalized: when
+`‖K •ᵥ ψ‖ > 0` the conditional state is `K •ᵥ ψ / ‖K •ᵥ ψ‖`, and no normalization is performed
+here.
 
-A contraction `K` gives the one-outcome subinstrument `Quantum.SubInstrument.ofContraction K`,
-which sends the pure substate of `ψ` to that of `K •ᵥ ψ`; it is lossless when `K` is an isometry,
-and sequencing two of them multiplies the operators. A unitary on a fixed register is the special
-case `Quantum.SubInstrument.ofUnitary`. For a measurement `Quantum.SubInstrument.ofKraus K`, the
-Born rule `Quantum.SubInstrument.outcomeMeasure_ofKraus_ofVector` gives outcome `a` the weight
-`‖K a •ᵥ ψ‖ ^ 2` and the post-branch substate of `K a •ᵥ ψ`. Combined with the norm estimates for
-vectors, the outcome weights of two input vectors differ on every event by at most
-`(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖` (`Quantum.SubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le`).
+These statements are about one Kraus operator per outcome. A branch that sums several Kraus maps,
+or a computation that forgets an outcome, can produce a mixed state, and a pure-state argument
+about it must track the individual Kraus contributions (`Quantum.MatrixMap.conj`).
 
-## Main definitions
+## Constructors
 
-* `Quantum.SubInstrument.ofContraction K hK`: the subinstrument `ρ ↦ K * ρ * Kᴴ` of a contraction.
-* `Quantum.SubInstrument.ofProjective P hP hsum`: the measurement with a complete family of star
-  projections.
-* `Quantum.SubInstrument.ofUnitary U`: the subinstrument applying a unitary to a register.
+* `Quantum.SubInstrument.ofContraction K hK`: the one-outcome subinstrument `ρ ↦ K ρ K†` of an
+  operator with `‖K‖ ≤ 1`. It loses probability `‖ψ‖² - ‖K •ᵥ ψ‖²` on `ψ`, and is lossless when
+  `K` is an isometry.
+* `Quantum.SubInstrument.ofUnitary U`: a unitary gate, the lossless case on one register. Running
+  `U` and then `V` is running `V * U`.
+* `Quantum.SubInstrument.ofProjective P hP hsum`: the measurement with orthogonal projections
+  `P a` summing to the identity, which leaves `P a •ᵥ ψ` on outcome `a`.
 
-## Kraus-form branches
+## Observation lemmas
 
-The Born rule holds branch by branch, for subinstruments and dependent subinstruments with any
-outcome type: if the branch at `a` is the Kraus map of `K`, the pure substate of `ψ` goes to
-that of `K •ᵥ ψ` with weight `‖K •ᵥ ψ‖ ^ 2`
+For a measurement with finitely many Kraus operators, `∑ a, (K a)† * K a = 1`, the distribution of
+the outcome on `|ψ⟩⟨ψ|` gives the event `E` the weight `∑ a ∈ E, ‖K a •ᵥ ψ‖²`
+(`Quantum.SubInstrument.outcomeMeasure_ofKraus_ofVector`). The `outcomeMeasure_*_bind_ofVector`
+lemmas run a continuation on the unnormalized vector `K a •ᵥ ψ`, whose squared norm already is the
+probability of `a`, so a `do` block reduces to vectors one step at a time. Changing the input
+vector moves the weight of every event by at most `(‖ψ‖ + ‖φ‖) * ‖ψ - φ‖`
+(`Quantum.SubInstrument.abs_outcomeMeasure_real_ofKraus_ofVector_sub_le`).
+
+## Any outcome type, and dependent output systems
+
+The same lemmas hold branch by branch for any subinstrument: if `p.branch a = MatrixMap.conj K`,
+then outcome `a` has weight `‖K •ᵥ ψ‖²` and leaves `K •ᵥ ψ`
 (`Quantum.SubInstrument.post_ofVector_of_branch_eq_conj`,
-`Quantum.SubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj` and the
-`Quantum.DSubInstrument` versions). This covers measurements with infinitely many outcomes, and
-dependent Kraus measurements whose output system depends on the outcome
-(`Quantum.DSubInstrument.post_ofKraus_ofVector`).
+`Quantum.SubInstrument.outcomeMeasure_ofVector_singleton_of_branch_eq_conj`). If every branch has
+this form, the distribution is the sum of the weighted point masses over all outcomes, with no
+finiteness assumption (`*_of_forall_branch_eq_conj`). `Quantum.DSubInstrument` has the same lemmas
+when the output system depends on the outcome (`Quantum.DSubInstrument.post_ofKraus_ofVector`).
+Lemmas about a single outcome need measurable singletons.
+
+## References
+
+* J. Watrous, *The Theory of Quantum Information*, Cambridge University Press, 2018. Instruments
+  and post-measurement states: equations (2.258)–(2.261), p. 112. A complete family of projections
+  is pairwise orthogonal: Proposition 2.40, p. 107.
 -/
 
 public section
@@ -200,8 +217,9 @@ section ofKraus
 
 variable [Fintype α] [DecidableEq A]
 
-/-- After a Kraus measurement reports `a` on the pure substate of `ψ`, the substate is the pure
-substate of `K a •ᵥ ψ`. -/
+/-- After a Kraus measurement reports `a` on `|ψ⟩⟨ψ|`, the state is `|K a ψ⟩⟨K a ψ|`, unnormalized:
+its trace `‖K a •ᵥ ψ‖²` is the probability of `a`. When that probability is positive, the
+conditional state is described by the unit vector `K a •ᵥ ψ / ‖K a •ᵥ ψ‖`. -/
 theorem post_ofKraus_ofVector (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1)
     (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
     (ofKraus K hK).post (.ofVector ψ hψ) a =
@@ -222,8 +240,9 @@ theorem outcomeMeasure_ofKraus_bind_ofVector {β : Type*} [MeasurableSpace β]
 
 variable [MeasurableSpace α]
 
-/-- Born rule: on the pure substate of `ψ`, a Kraus measurement reports outcome `a` with weight
-`‖K a •ᵥ ψ‖ ^ 2`. -/
+/-- The Born rule: for Kraus operators with `∑ a, (K a)† * K a = 1`, the distribution of the outcome
+on `|ψ⟩⟨ψ|` is `∑ a, ‖K a •ᵥ ψ‖² • δ_a`, of total mass `‖ψ‖²`. For a unit vector the weights are
+probabilities. -/
 theorem outcomeMeasure_ofKraus_ofVector (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1)
     (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) :
     (ofKraus K hK).outcomeMeasure (.ofVector ψ hψ) =
@@ -336,7 +355,9 @@ theorem lossless_ofProjectiveFinset : (ofProjectiveFinset P hP s hs hsum).Lossle
   rw [← Matrix.trace_sum, ← Finset.sum_mul,
     sum_conjTranspose_mul_self_of_isStarProjection_finset hP s hsum, Matrix.one_mul]
 
-/-- A retained outcome projects the input vector, keeping its unnormalized branch weight. -/
+/-- After a projective measurement reports `a` on `|ψ⟩⟨ψ|`, the state is `|P a ψ⟩⟨P a ψ|`,
+unnormalized: its trace `‖P a •ᵥ ψ‖²` is the probability of `a`. When that probability is positive,
+the conditional state is described by the unit vector `P a •ᵥ ψ / ‖P a •ᵥ ψ‖`. -/
 theorem post_ofProjectiveFinset_ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
     (ofProjectiveFinset P hP s hs hsum).post (.ofVector ψ hψ) a =
       .ofVector (P a •ᵥ ψ) ((norm_applyVec_le_of_isStarProjection (hP a) ψ).trans hψ) :=
@@ -425,8 +446,11 @@ theorem sum_conjTranspose_mul_self_of_isStarProjection {P : α → Matrix A A �
   refine Finset.sum_congr rfl fun a _ ↦ ?_
   rw [← Matrix.star_eq_conjTranspose, (hP a).isSelfAdjoint.star_eq, (hP a).isIdempotentElem.eq]
 
-/-- The projective measurement with a family of star projections `P a`, one per outcome, that
-sums to one: the Kraus measurement with operators `P a`. -/
+/-- The projective measurement with projections `P a` summing to the identity: on outcome `a` it
+applies `ρ ↦ P a ρ P a`. Each `P a` is an orthogonal projection (`IsStarProjection`: `P a† = P a`
+and `P a * P a = P a`), and a complete family of them is pairwise orthogonal. On `ψ`, outcome `a`
+has probability `‖P a •ᵥ ψ‖²` and leaves `P a •ᵥ ψ` (the Lüders rule). `ofProjectiveFinset` is the
+same measurement for an arbitrary label type with finitely many nonzero projections. -/
 @[expose]
 noncomputable def ofProjective (P : α → Matrix A A ℂ) (hP : ∀ a, IsStarProjection (P a))
     (hsum : ∑ a, P a = 1) : SubInstrument A A α :=
@@ -467,8 +491,9 @@ theorem branch_ofProjective_apply (a : α) :
 theorem lossless_ofProjective : (ofProjective P hP hsum).Lossless :=
   lossless_ofProjectiveFinset P hP Finset.univ _ hsum
 
-/-- After a projective measurement reports `a` on the pure substate of `ψ`, the substate is the
-pure substate of the projection `P a •ᵥ ψ`. -/
+/-- After a projective measurement reports `a` on `|ψ⟩⟨ψ|`, the state is `|P a ψ⟩⟨P a ψ|`,
+unnormalized: its trace `‖P a •ᵥ ψ‖²` is the probability of `a`. When that probability is positive,
+the conditional state is described by the unit vector `P a •ᵥ ψ / ‖P a •ᵥ ψ‖`. -/
 theorem post_ofProjective_ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (a : α) :
     (ofProjective P hP hsum).post (.ofVector ψ hψ) a =
       .ofVector (P a •ᵥ ψ) ((norm_applyVec_le_of_isStarProjection (hP a) ψ).trans hψ) :=
@@ -592,8 +617,10 @@ section ofKraus
 
 variable [Fintype ι] (K : (i : ι) → Matrix (B i) A ℂ) (hK : ∑ i, (K i)ᴴ * K i = 1)
 
-/-- After a dependent Kraus measurement reports `i` on the pure substate of `ψ`, the substate is
-the pure substate of `K i •ᵥ ψ` on the system `B i`. -/
+/-- After a dependent Kraus measurement reports `i` on `|ψ⟩⟨ψ|`, the state is `|K i ψ⟩⟨K i ψ|`,
+unnormalized on the output system `B i`: its trace `‖K i •ᵥ ψ‖²` is the probability of `i`. When
+that probability is positive, the conditional state is described by the unit vector
+`K i •ᵥ ψ / ‖K i •ᵥ ψ‖`. -/
 theorem post_ofKraus_ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) (i : ι) :
     (ofKraus K hK).post (.ofVector ψ hψ) i =
       .ofVector (K i •ᵥ ψ)

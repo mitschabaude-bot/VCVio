@@ -119,7 +119,13 @@ end ketBra
 
 variable [Fintype A] [Fintype B]
 
-/-- The pure substate `|ψ⟩⟨ψ|` of a subnormalized state vector `ψ`. Its trace is `‖ψ‖ ^ 2`. -/
+/-- The pure substate `|ψ⟩⟨ψ|` of a vector with `‖ψ‖ ≤ 1`. Its trace is `‖ψ‖²`, the probability
+of the branch the vector describes. A unit vector gives a normalized pure state, and the zero
+vector the zero substate.
+
+Vectors that differ by a phase `e^{iθ}` give the same substate (`ofVector_smul`): a global phase
+is not observable. Mixed substates are not of this form. `conj_matrix_ofVector` turns the action
+`ρ ↦ K ρ K†` on `|ψ⟩⟨ψ|` into the action `ψ ↦ K •ᵥ ψ` on vectors. -/
 @[expose]
 def SubState.ofVector (ψ : EuclideanSpace ℂ A) (hψ : ‖ψ‖ ≤ 1) : SubState A where
   matrix := ketBra ψ ψ

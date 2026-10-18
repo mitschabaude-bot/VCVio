@@ -135,10 +135,13 @@ theorem commutator_applyVec (X Y : Matrix A A ℂ) (ψ : EuclideanSpace ℂ A) :
 
 /-! ## The hybrid bound -/
 
-/-- The state of a query algorithm just before its query number `i` (counting from zero): the
-operators `U 0, U 1, …` alternate with the oracle calls `O 0, O 1, …`, so that
-`queryState U O ψ i = U i •ᵥ O (i - 1) •ᵥ U (i - 1) •ᵥ ⋯ •ᵥ O 0 •ᵥ U 0 •ᵥ ψ`. It is also the final
-state of the algorithm that makes `i` queries. -/
+/-- The state vector of a sequence of operators alternating with oracle calls, just before call
+`i`: `ψ₀ = U₀ ψ` and `ψᵢ₊₁ = Uᵢ₊₁ (Oᵢ ψᵢ)`. It is also the final state of the sequence stopped
+after `i` calls and the operator that follows them.
+
+The operators are arbitrary matrices; unitary ones give the usual model of a quantum query
+algorithm, with the oracle as the unitaries `Oᵢ`. This is a tool for vector proofs, not a
+definition of quantum adversaries. -/
 @[expose]
 noncomputable def queryState (U O : ℕ → Matrix A A ℂ) (ψ : EuclideanSpace ℂ A) :
     ℕ → EuclideanSpace ℂ A
@@ -169,11 +172,15 @@ theorem norm_queryState_le (U O : ℕ → Matrix A A ℂ) (ψ : EuclideanSpace �
       (norm_applyVec_le_of_norm_le_one (hO q q.lt_succ_self) _).trans <|
         ih (fun i hi ↦ hU i (hi.trans q.le_succ)) fun i hi ↦ hO i (hi.trans q.lt_succ_self)
 
-/-- Hybrid bound. Two query algorithms that share the operators `U` and the initial vector `ψ`
-and call the oracles `O` and `O'` end, after `q` queries, in states at distance at most the sum
-over the queries `i < q` of `‖(O i - O' i) •ᵥ ψᵢ‖`, where `ψᵢ = queryState U O ψ i` is the state
-just before query `i` in the run with `O`. Only the operators after the first query and the
-oracle calls `O'` need to be contractions. -/
+/-- The hybrid bound. Two runs of the same operators `U` from the same vector `ψ`, one calling the
+oracles `O` and the other `O'`, end after `q` calls at distance
+`‖ψ_q - ψ'_q‖ ≤ ∑ i < q, ‖(O i - O' i) •ᵥ ψᵢ‖`, where `ψᵢ` is the state before call `i` in the run
+with `O`.
+
+Each call adds its own discrepancy, and the later operators, which are contractions, do not
+enlarge it. Only `U 1, …, U q` and `O' 0, …, O' (q - 1)` need be contractions. This is the
+telescoping step of the hybrid argument of Bennett, Bernstein, Brassard and Vazirani (arXiv
+quant-ph/9701001, Theorem 3.3, PDF pp. 7–8), for contractions in place of unitaries. -/
 theorem norm_queryState_sub_queryState_le (U O O' : ℕ → Matrix A A ℂ) (ψ : EuclideanSpace ℂ A)
     (q : ℕ) (hU : ∀ i < q, ‖U (i + 1)‖ ≤ 1) (hO' : ∀ i < q, ‖O' i‖ ≤ 1) :
     ‖queryState U O ψ q - queryState U O' ψ q‖ ≤

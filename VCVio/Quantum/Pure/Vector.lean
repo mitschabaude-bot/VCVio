@@ -10,35 +10,54 @@ public import Mathlib.Analysis.InnerProductSpace.Adjoint
 public import VCVio.Quantum.MatrixMap
 
 /-!
-# State vectors and the operators acting on them
+# State vectors and operators
 
-A state vector of the system with basis `A` is an element of `EuclideanSpace ℂ A`, and an operator
-from the system `A` to the system `B` is a matrix `K : Matrix B A ℂ`, the same type the Kraus maps
-`Quantum.MatrixMap.conj` and `Quantum.SubInstrument.ofKraus` take. The operator acts on a vector
-through Mathlib's `Matrix.toEuclideanLin`, written `K •ᵥ ψ` in the `Quantum` scope, and the norm
-of an operator is the operator norm of that action, Mathlib's scoped instance
-`Matrix.Norms.L2Operator`.
+The core (`VCVio.Quantum.SubInstrument`) describes states by density matrices. Many quantum
+query arguments are instead written with state vectors, operator norms and the triangle
+inequality. This file and the others in `VCVio.Quantum.Pure` provide that vocabulary, and prove
+that it agrees with the density-matrix semantics, so that a proof can argue with vectors and
+conclude a statement about `outcomeMeasure`.
 
-This representation is chosen for three reasons. The vectors carry the `ℓ²` norm and inner
-product as instances, where a bare function `A → ℂ` carries the supremum norm. The operators stay
-matrices, so a statement proved with vectors transfers to density matrices with no translation
-between operator types. And `Matrix.toEuclideanLin` is a linear equivalence that sends products
-to composites and the conjugate transpose to the adjoint, so Mathlib's inner-product-space and
-C⋆-algebra lemmas apply directly, including for rectangular operators.
+## Conventions
+
+* A state vector of the system `A` is an element of `EuclideanSpace ℂ A`, with
+  `‖ψ‖² = ∑ a, ‖ψ a‖²`. A normalized pure state has `‖ψ‖ = 1`; a vector of norm less than one is
+  the state of a branch whose probability is `‖ψ‖²`. Lemmas assume no norm bound unless they say
+  so.
+* An operator from `A` to `B` is the same `K : Matrix B A ℂ` that the core uses as a Kraus
+  operator, so no translation between operator types is needed. It acts on column vectors,
+  `(K •ᵥ ψ) b = ∑ a, K b a * ψ a`, through Mathlib's `Matrix.toEuclideanLin` (open the `Quantum`
+  scope for `•ᵥ`). `L * K` applies `K` first.
+* The inner product `⟪φ, ψ⟫ = ∑ a, conj (φ a) * ψ a` is conjugate-linear in its first argument,
+  as is the physicists' `⟨φ|ψ⟩`.
+* Opening `Matrix.Norms.L2Operator` makes `‖K‖` the operator norm `sup_{‖ψ‖ ≤ 1} ‖K •ᵥ ψ‖`. A bare
+  function `A → ℂ` carries the supremum norm instead, which is why vectors are `EuclideanSpace`.
+
+## Why vectors and density matrices coexist
+
+Vectors are the natural language for interference and for errors that accumulate over queries:
+`‖ψ - φ‖` is a distance, and operators move it by at most their norm. Density matrices are needed
+for everything vectors cannot express: mixed states, which arise as soon as a measurement outcome
+is forgotten, and the composition of measurements with later quantum steps. Measuring `|+⟩` and
+forgetting the outcome leaves `(1/2) · 1`, which is not `|ψ⟩⟨ψ|` for any vector `ψ`.
+
+The bridge is the pure substate `|ψ⟩⟨ψ|` (`Quantum.SubState.ofVector`, in
+`VCVio.Quantum.Pure.State`) together with the Born rule for Kraus measurements
+(`VCVio.Quantum.Pure.Instrument`). Both descriptions use the same operator matrices.
 
 ## Main results
 
-* `Quantum.norm_applyVec_le`, `Quantum.l2_opNorm_le_of_forall`: the operator norm bounds the
+* `Quantum.norm_applyVec_le` and `Quantum.l2_opNorm_le_of_forall`: the operator norm bounds the
   action, and is the least such bound.
-* `Quantum.inner_applyVec_applyVec`, `Quantum.norm_sq_applyVec`: inner products and norms of
-  images through the conjugate transpose.
-* `Quantum.posSemidef_one_sub_conjTranspose_mul_self_iff`: `1 - Kᴴ * K` is positive semidefinite
-  exactly when `‖K‖ ≤ 1`, which identifies the contractions with the hypothesis of
-  `Quantum.MatrixMap.isTNI_conj`.
-* `Quantum.sum_norm_sq_applyVec`: a complete family of Kraus operators preserves the total
-  squared norm.
-* `Quantum.norm_sq_applyVec_add_norm_sq_one_sub_applyVec`: the Pythagorean identity for a star
-  projection.
+* `Quantum.inner_applyVec_applyVec` and `Quantum.norm_sq_applyVec`: operators move through inner
+  products as their conjugate transposes.
+* `Quantum.posSemidef_one_sub_conjTranspose_mul_self_iff`: `K† K ≤ 1` exactly when `‖K‖ ≤ 1`.
+  This identifies the contractions with the hypothesis of `Quantum.MatrixMap.isTNI_conj`.
+* `Quantum.sum_norm_sq_applyVec`: a complete family of Kraus operators preserves the squared norm.
+* `Quantum.norm_sq_applyVec_add_norm_sq_one_sub_applyVec`: Pythagoras for an orthogonal
+  projection, which Mathlib calls a star projection (`IsStarProjection`).
+
+Tensor order and untouched registers are in `VCVio.Quantum.Pure.Tensor`.
 -/
 
 public section

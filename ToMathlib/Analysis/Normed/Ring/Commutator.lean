@@ -66,8 +66,7 @@ theorem List.norm_prod_le_one (h1 : ‖(1 : R)‖ ≤ 1) (l : List R) (hl : ∀ 
       (one_mul 1)
 
 /-- Telescoped Leibniz bound: the commutator of `a` with a product of elements of norm at most
-one is bounded by the sum of the norms of the commutators of `a` with the factors. The hypothesis
-on the unit holds in every norm-one ring, and in the zero ring. -/
+one is bounded by the sum of the norms of the commutators of `a` with the factors. -/
 theorem norm_lie_list_prod_le (a : R) (l : List R)
     (hl : ∀ b ∈ l, ‖b‖ ≤ 1) : ‖⁅a, l.prod⁆‖ ≤ (l.map fun b ↦ ‖⁅a, b⁆‖).sum := by
   induction l with
