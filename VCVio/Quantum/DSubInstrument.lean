@@ -5,7 +5,8 @@ Authors: Quang Dao
 -/
 
 module
-public import VCVio.Quantum.SubInstrument
+public import VCVio.Quantum.MatrixMap.Family
+public import VCVio.Quantum.MatrixMap.Kraus
 
 /-!
 # Dependent subinstruments
@@ -36,28 +37,26 @@ Sequencing is Kleisli composition of branch families (`Quantum.MatrixMap.familyB
 the single identity branch `Quantum.DSubInstrument.ret`. The unit and associativity laws are
 equalities of structures.
 
+Every branch has a finite Kraus representation (`Quantum.DSubInstrument.exists_kraus_branch`),
+even when the outcome type is infinite. For finitely many outcomes,
+`Quantum.DSubInstrument.exists_kraus_of_fintype` gives a joint completeness inequality, and
+`Quantum.DSubInstrument.Lossless.exists_kraus` gives equality, with operators indexed by
+`B i × A` on outcome `i`. For two stages with finitely many intermediate outcomes,
+`Quantum.DSubInstrument.branch_bind_eq_sum_conj_mul` expresses each final branch as a sum of
+Kraus maps along paths, with the later operator multiplying on the left.
+
 ## The constant-codomain case
 
-`Quantum.SubInstrument A B α` is exactly the case of a constant output system:
-`Quantum.SubInstrument.equivD : SubInstrument A B α ≃ DSubInstrument A α (fun _ ↦ B)`, which keeps
-the branch family unchanged. The equivalence sends `pure`, `bind`, `map`, `fail`, `frame` and
-`ofKraus` to `ret`, `bind`, `map`, `fail`, `frame` and `ofKraus` (`Quantum.SubInstrument.toD_pure`,
-`toD_bind`, `toD_map`, `toD_fail`, `toD_frame`, `toD_ofKraus`), and losslessness to losslessness
-(`Quantum.SubInstrument.lossless_toD_iff`). For a constant codomain the trace functional of a
-branch family is the trace after the total map (`Quantum.SubInstrument.familyTrace_branch`).
+`Quantum.SubInstrument A B α` is defined in `VCVio.Quantum.SubInstrument` as an abbreviation
+for `DSubInstrument A α (fun _ ↦ B)`. This API applies to it directly. Only the total map,
+the one-outcome `ofMap` constructor and the fixed-register `Monad` instance need a constant
+codomain. In general this is an indexed monad, since `ret B i` changes the input system to `B i`.
 
 ## Main definitions
 
 * `Quantum.DSubInstrument A ι B`: dependent subinstruments, with `ret`, `bind`, `map`, `fail`,
   `frame`, `ofKraus` and the restriction `comap` along an injective map of outcomes.
 * `Quantum.DSubInstrument.Lossless`: the trace functional is the trace.
-* `Quantum.SubInstrument.toD`, `Quantum.DSubInstrument.toSubInstrument`,
-  `Quantum.SubInstrument.equivD`: the constant-codomain case.
-
-`Quantum.DSubInstrument.exists_kraus_branch` gives a finite Kraus representation for each fixed
-outcome: `branch i ρ = ∑ k, K k * ρ * (K k)†`, with `K k : Matrix (B i) A ℂ` and `k : B i × A`.
-The outcome type is unrestricted. This branchwise theorem does not assert a joint finite
-environment or a Kraus-path theorem for dependent sequencing.
 -/
 
 public section
@@ -75,8 +74,8 @@ every positive semidefinite `ρ`. For example, a measurement may keep a qubit on
 discard it on another (output system `Unit`, which is one-dimensional).
 
 Only countably many branches are nonzero. Outcomes are classical: there are no off-diagonal blocks
-between different output systems. `SubInstrument.equivD` identifies subinstruments with the case
-of a constant output system. -/
+between different output systems. `SubInstrument` abbreviates the case of a constant
+output system. -/
 @[ext]
 structure DSubInstrument (A : Type*) [Fintype A] (ι : Type*) (B : ι → Type*)
     [∀ i, Fintype (B i)] where
@@ -122,6 +121,14 @@ the input. -/
 theorem tsum_trace_re_le (p : DSubInstrument A ι B) {ρ : Matrix A A ℂ} (hρ : ρ.PosSemidef) :
     ∑' i, (p.branch i ρ).trace.re ≤ ρ.trace.re :=
   p.isCPTNIFamily.tsum_trace_re_apply_le hρ
+
+/-- On a positive semidefinite input, each branch trace is bounded by the family trace. -/
+theorem trace_re_branch_apply_le_familyTrace (p : DSubInstrument A ι B) (i : ι)
+    {ρ : Matrix A A ℂ} (hρ : ρ.PosSemidef) :
+    (p.branch i ρ).trace.re ≤ (MatrixMap.familyTrace p.branch ρ).re := by
+  rw [p.isCPTNIFamily.familyTrace_apply, p.isCPTNIFamily.re_tsum_trace_apply]
+  exact (p.isCPTNIFamily.summable_trace_re_apply hρ).le_tsum i
+    fun j _ ↦ p.trace_re_branch_apply_nonneg j hρ
 
 /-- On a positive semidefinite input, each branch has trace at most that of the input. -/
 theorem trace_re_branch_apply_le (p : DSubInstrument A ι B) (i : ι) {ρ : Matrix A A ℂ}
@@ -257,6 +264,53 @@ theorem map_eq_bind_ret (f : ι → κ) (p : DSubInstrument A ι fun i ↦ C (f 
     p.map f = p.bind fun i ↦ ret C (f i) :=
   rfl
 
+/-- The branch at `c` sums the branches in its fibre, transported to the system `C c`. -/
+theorem branch_map_apply (f : ι → κ) (p : DSubInstrument A ι fun i ↦ C (f i))
+    (c : κ) (ρ : Matrix A A ℂ) :
+    (p.map f).branch c ρ = ∑' i : f ⁻¹' {c},
+      cast (congrArg (fun j ↦ Matrix (C j) (C j) ℂ) i.property) (p.branch i ρ) := by
+  rw [map_eq_bind_ret, branch_bind_apply]
+  calc
+    _ = ∑' i : f ⁻¹' {c}, (ret C (f i)).branch c (p.branch i ρ) := by
+      rw [tsum_subtype (f ⁻¹' {c})
+        (fun i ↦ (ret C (f i)).branch c (p.branch i ρ))]
+      apply tsum_congr
+      intro i
+      by_cases h : f i = c
+      · rw [Set.indicator_of_mem (show i ∈ f ⁻¹' {c} from h)]
+      · rw [Set.indicator_of_notMem (show i ∉ f ⁻¹' {c} from h),
+          branch_ret_of_ne C (Ne.symm h), LinearMap.zero_apply]
+    _ = _ := by
+      apply tsum_congr
+      intro ⟨i, hi⟩
+      change f i = c at hi
+      subst c
+      simp only [branch_ret_self, LinearMap.id_apply, cast_eq]
+
+/-- The branch at `c` is the sum of its fibre of branch maps, transported to `C c`. -/
+theorem branch_map (f : ι → κ) (p : DSubInstrument A ι fun i ↦ C (f i)) (c : κ) :
+    (p.map f).branch c = MatrixMap.familySum (fun i : f ⁻¹' {c} ↦
+      cast (congrArg (fun j ↦ MatrixMap A (C j)) i.property) (p.branch i)) := by
+  have he (i : f ⁻¹' {c}) :
+      (cast (congrArg (fun j ↦ MatrixMap A (C j)) i.property) (p.branch i) : MatrixMap A (C c)) =
+        (ret C (f i)).branch c ∘ₗ p.branch i := by
+    obtain ⟨i, hi⟩ := i
+    dsimp at hi ⊢
+    subst c
+    simp only [branch_ret_self, LinearMap.id_comp, cast_eq]
+  simp_rw [he]
+  apply LinearMap.ext
+  intro ρ
+  rw [MatrixMap.familySum_apply
+    (fun ρ ↦ ((p.isCPTNIFamily.comp_eval
+      (fun i ↦ (ret C (f i)).isCPTNIFamily) c).summable_apply ρ).subtype _)]
+  rw [branch_map_apply]
+  apply tsum_congr
+  intro ⟨i, hi⟩
+  dsimp at hi ⊢
+  subst c
+  simp only [branch_ret_self, LinearMap.id_apply, cast_eq]
+
 /-- Reindexing along the identity changes nothing. -/
 @[simp]
 theorem map_id (p : DSubInstrument A ι B) : p.map (C := B) id = p :=
@@ -310,7 +364,7 @@ theorem bind_fail (p : DSubInstrument A ι B) :
 /-- Extend each branch by the identity on a right-hand reference system `R`:
 the branch at `i` is `p.branch i ⊗ id_R`, from `A × R` to `B i × R`.
 No operation acts directly on `R`, but its outcome-conditioned state may change through
-entanglement with the system. This is the dependent-output form of `SubInstrument.frame`. -/
+entanglement with the system. -/
 @[expose]
 noncomputable def frame (p : DSubInstrument A ι B) (R : Type*) [Fintype R] :
     DSubInstrument (A × R) ι fun i ↦ B i × R where
@@ -358,8 +412,8 @@ end frame
 /-! ### Losslessness -/
 
 /-- A dependent subinstrument is lossless when its trace functional is the trace: the traces of
-its branches sum to the trace of the input, so it never fails. This is the analogue of
-`Quantum.SubInstrument.Lossless`, trace preservation of the total map. -/
+its branches sum to the trace of the input, so it never fails. For a constant codomain this is
+trace preservation of the total map. -/
 @[expose]
 def Lossless (p : DSubInstrument A ι B) : Prop :=
   ∀ ρ : Matrix A A ℂ, MatrixMap.familyTrace p.branch ρ = ρ.trace
@@ -439,6 +493,62 @@ theorem exists_kraus_branch (p : DSubInstrument A ι B) (i : ι) :
     ∃ K : B i × A → Matrix (B i) A ℂ, p.branch i = ∑ k, MatrixMap.conj (K k) :=
   p.isCPTNIFamily.exists_kraus i
 
+/-- Finitely many dependent branches admit joint Kraus operators, with the sum of their
+squared operators bounded by the identity in the positive semidefinite order. -/
+theorem exists_kraus_of_fintype [Fintype ι] [DecidableEq A] (p : DSubInstrument A ι B) :
+    ∃ K : (i : ι) → B i × A → Matrix (B i) A ℂ,
+      (∀ i, p.branch i = ∑ k, MatrixMap.conj (K i k)) ∧
+      (1 - ∑ i, ∑ k, (K i k)ᴴ * K i k).PosSemidef := by
+  classical
+  choose K hK using p.exists_kraus_branch
+  refine ⟨K, hK, ?_⟩
+  refine (isHermitian_one.sub (Matrix.posSemidef_sum _ fun i _ ↦
+    MatrixMap.posSemidef_sum_conjTranspose_mul_self (K i)).isHermitian
+    ).posSemidef_of_trace_mul_re_nonneg fun ρ hρ ↦ ?_
+  have h := p.trace_le Finset.univ ρ hρ
+  simp only [Finset.mem_univ, Finset.sum_const_zero, Finset.sum_ite_irrel,
+    if_true, hK, MatrixMap.trace_sum_conj_apply] at h
+  rw [Matrix.sub_mul, Matrix.one_mul, Matrix.trace_sub, Complex.sub_re]
+  simpa only [Finset.sum_mul, Matrix.trace_sum, Complex.re_sum] using sub_nonneg.mpr h
+
+/-- A lossless dependent subinstrument with finitely many outcomes has joint Kraus operators
+whose squared operators sum to the identity. -/
+theorem Lossless.exists_kraus [Fintype ι] [DecidableEq A] {p : DSubInstrument A ι B}
+    (hp : p.Lossless) :
+    ∃ K : (i : ι) → B i × A → Matrix (B i) A ℂ,
+      (∀ i, p.branch i = ∑ k, MatrixMap.conj (K i k)) ∧
+      ∑ i, ∑ k, (K i k)ᴴ * K i k = 1 := by
+  classical
+  choose K hK using p.exists_kraus_branch
+  refine ⟨K, hK, ?_⟩
+  have ht (ρ : Matrix A A ℂ) :
+      ((∑ i, ∑ k, (K i k)ᴴ * K i k) * ρ).trace = ρ.trace := by
+    have h := hp ρ
+    simpa only [MatrixMap.familyTrace, tsum_fintype, hK, MatrixMap.trace_sum_conj_apply,
+      Finset.sum_mul, Matrix.trace_sum] using h
+  ext a a'
+  have h := ht (single a' a 1)
+  rw [Matrix.trace_mul_single] at h
+  by_cases ha : a = a'
+  · subst ha
+    simpa [Matrix.trace_single_eq_same] using h
+  · simpa [Matrix.trace_single_eq_of_ne _ _ _ (Ne.symm ha), Matrix.one_apply_ne ha] using h
+
+/-- Kraus operators of dependent sequencing are path products, with the later operator on
+ the left. Intermediate outcomes are finite; final outcomes need not be finite. Paths are
+classical alternatives, so their output matrices add. -/
+theorem branch_bind_eq_sum_conj_mul [Fintype ι] {ν ξ : Type*} [Fintype ν] [Fintype ξ]
+    (p : DSubInstrument A ι B) (k : (i : ι) → DSubInstrument (B i) κ C)
+    {K : (i : ι) → ν → Matrix (B i) A ℂ}
+    {L : (i : ι) → (c : κ) → ξ → Matrix (C c) (B i) ℂ}
+    (hK : ∀ i, p.branch i = ∑ j, MatrixMap.conj (K i j))
+    (hL : ∀ i c, (k i).branch c = ∑ j, MatrixMap.conj (L i c j)) (c : κ) :
+    (p.bind k).branch c = ∑ x : ι × ν × ξ,
+      MatrixMap.conj (L x.1 c x.2.2 * K x.1 x.2.1) := by
+  simp only [branch_bind_apply_univ, Fintype.sum_prod_type, MatrixMap.conj_mul, hK, hL]
+  refine Finset.sum_congr rfl fun i _ ↦ LinearMap.ext fun ρ ↦ ?_
+  simp only [LinearMap.comp_apply, LinearMap.sum_apply, map_sum]
+
 /-! ### Restricting the outcomes -/
 
 /-- The restriction of a dependent subinstrument along an injective map `f : κ → ι` of outcomes:
@@ -466,144 +576,5 @@ theorem Lossless.comap {p : DSubInstrument A ι B} (hp : p.Lossless) {f : κ →
   exact (Equiv.ofBijective f hf).tsum_eq fun i ↦ (p.branch i ρ).trace
 
 end DSubInstrument
-
-/-! ## Subinstruments are the constant-codomain case -/
-
-namespace SubInstrument
-
-variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
-
-/-- For a constant codomain, the trace functional of the branch family of a subinstrument is the
-trace after its total map. -/
-theorem familyTrace_branch (p : SubInstrument A B α) :
-    MatrixMap.familyTrace p.branch = Matrix.traceLinearMap B ℂ ℂ ∘ₗ p.total :=
-  MatrixMap.familyTrace_eq_trace_familySum p.summable_branch_apply
-
-/-- A subinstrument as a dependent subinstrument with constant output system. -/
-@[expose]
-def toD (p : SubInstrument A B α) : DSubInstrument A α fun _ ↦ B where
-  branch := p.branch
-  isCP_branch := p.isCP_branch
-  trace_le := p.isCPTNIFamily.sum_trace_re_le
-
-/-- The branch family of `toD p` is the branch family of `p`. -/
-@[simp]
-theorem branch_toD (p : SubInstrument A B α) : (toD p).branch = p.branch :=
-  rfl
-
-/-- The branch of `toD p` at `a` is the branch of `p` at `a`. -/
-theorem branch_toD_apply (p : SubInstrument A B α) (a : α) : (toD p).branch a = p.branch a :=
-  rfl
-
-end SubInstrument
-
-namespace DSubInstrument
-
-variable {A B : Type*} [Fintype A] [Fintype B] {α : Type*}
-
-/-- A dependent subinstrument with constant output system as a subinstrument. -/
-@[expose]
-def toSubInstrument (q : DSubInstrument A α fun _ ↦ B) : SubInstrument A B α where
-  branch := q.branch
-  isCP_branch := q.isCP_branch
-  isTNI_sum := q.isCPTNIFamily.isTNI_sum
-
-/-- The branch of `q.toSubInstrument` at `a` is the branch of `q` at `a`. -/
-@[simp]
-theorem branch_toSubInstrument_apply (q : DSubInstrument A α fun _ ↦ B) (a : α) :
-    q.toSubInstrument.branch a = q.branch a :=
-  rfl
-
-end DSubInstrument
-
-namespace SubInstrument
-
-variable {A B C : Type*} [Fintype A] [Fintype B] [Fintype C] {α β : Type*}
-
-/-- **Subinstruments are the constant-codomain case of dependent subinstruments.** The
-equivalence keeps the branch family. -/
-@[expose]
-def equivD : SubInstrument A B α ≃ DSubInstrument A α fun _ ↦ B where
-  toFun := toD
-  invFun := DSubInstrument.toSubInstrument
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-/-- The equivalence `equivD` is `toD`. -/
-@[simp]
-theorem equivD_apply (p : SubInstrument A B α) : equivD p = toD p :=
-  rfl
-
-/-- The inverse of `equivD` is `toSubInstrument`. -/
-@[simp]
-theorem equivD_symm_apply (q : DSubInstrument A α fun _ ↦ B) :
-    equivD.symm q = q.toSubInstrument :=
-  rfl
-
-/-- `toSubInstrument` is a left inverse of `toD`. -/
-@[simp]
-theorem toSubInstrument_toD (p : SubInstrument A B α) : (toD p).toSubInstrument = p :=
-  rfl
-
-/-- `toD` is a left inverse of `toSubInstrument`. -/
-@[simp]
-theorem toD_toSubInstrument (q : DSubInstrument A α fun _ ↦ B) : toD q.toSubInstrument = q :=
-  rfl
-
-/-- `toD` is injective. -/
-theorem toD_injective : Function.Injective (toD : SubInstrument A B α → _) :=
-  equivD.injective
-
-/-- `toD` is injective. -/
-@[simp]
-theorem toD_inj {p q : SubInstrument A B α} : toD p = toD q ↔ p = q :=
-  toD_injective.eq_iff
-
-/-- `toD` sends `pure a` to `ret` at `a`. -/
-@[simp]
-theorem toD_pure (a : α) :
-    toD (SubInstrument.pure a : SubInstrument A A α) = DSubInstrument.ret (fun _ ↦ A) a := by
-  refine DSubInstrument.ext <| funext fun a' ↦ ?_
-  rw [branch_toD]
-  obtain rfl | h := eq_or_ne a' a
-  · rw [branch_pure_self, DSubInstrument.branch_ret_self]
-  · rw [branch_pure_of_ne h, DSubInstrument.branch_ret_of_ne _ h]
-
-/-- `toD` sends sequencing to sequencing. -/
-theorem toD_bind (p : SubInstrument A B α) (k : α → SubInstrument B C β) :
-    toD (p.bind k) = (toD p).bind fun a ↦ toD (k a) :=
-  rfl
-
-/-- `toD` sends relabelling outcomes to reindexing outcomes. -/
-theorem toD_map (f : α → β) (p : SubInstrument A B α) :
-    toD (p.map f) = (toD p).map (C := fun _ ↦ B) f := by
-  rw [map_eq_bind_pure, toD_bind]
-  simp only [toD_pure]
-  rfl
-
-/-- `toD` sends failure to failure. -/
-@[simp]
-theorem toD_fail : toD (SubInstrument.fail : SubInstrument A B α) = DSubInstrument.fail :=
-  rfl
-
-/-- `toD` commutes with framing by an ancilla. -/
-@[simp]
-theorem toD_frame (p : SubInstrument A B α) (R : Type*) [Fintype R] :
-    toD (p.frame R) = (toD p).frame R :=
-  rfl
-
-/-- `toD` sends a Kraus measurement to the Kraus measurement with constant output system. -/
-@[simp]
-theorem toD_ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ)
-    (hK : ∑ a, (K a)ᴴ * K a = 1) :
-    toD (ofKraus K hK) = DSubInstrument.ofKraus (B := fun _ ↦ B) K hK :=
-  rfl
-
-/-- `toD p` is lossless exactly when `p` is. -/
-@[simp]
-theorem lossless_toD_iff {p : SubInstrument A B α} : (toD p).Lossless ↔ p.Lossless :=
-  (MatrixMap.isTP_familySum_iff p.summable_branch_apply).symm
-
-end SubInstrument
 
 end Quantum
