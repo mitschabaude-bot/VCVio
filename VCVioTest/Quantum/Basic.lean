@@ -93,6 +93,14 @@ example (a : α) : (SubInstrument.pure a : SubInstrument A A α).frame R =
     (SubInstrument.pure a : SubInstrument (A × R) (A × R) α) := by
   rw [SubInstrument.frame_pure]
 
+/-- Framing commutes with the constant mapping facade by rewriting. -/
+example (p : SubInstrument A B α) (f : α → β) : (p.map f).frame R = (p.frame R).map f := by
+  rw [SubInstrument.frame_map]
+
+/-- Framing constant failure gives failure by rewriting. -/
+example : (SubInstrument.fail : SubInstrument A B α).frame R = SubInstrument.fail := by
+  rw [SubInstrument.frame_fail]
+
 /-- The dependent total-map law simplifies the constant mapping facade. -/
 example (p : SubInstrument A B α) (f : α → β) : (p.map f).total = p.total := by
   simp only [DSubInstrument.total_map]

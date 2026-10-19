@@ -227,6 +227,17 @@ theorem frame_pure (R : Type*) [Fintype R] (a : α) :
       (SubInstrument.pure a : SubInstrument (A × R) (A × R) α) :=
   DSubInstrument.frame_ret R a
 
+/-- Framing commutes with relabelling constant-output outcomes. -/
+theorem frame_map (R : Type*) [Fintype R] (f : α → β) (p : SubInstrument A B α) :
+    (p.map f).frame R = (p.frame R).map f := by
+  simpa only using DSubInstrument.frame_map (C := fun _ ↦ B) R f p
+
+/-- Framing the failing constant-output subinstrument gives the failing subinstrument. -/
+@[simp]
+theorem frame_fail (R : Type*) [Fintype R] :
+    (SubInstrument.fail : SubInstrument A B α).frame R = SubInstrument.fail :=
+  DSubInstrument.frame_fail R
+
 end SubInstrument
 
 namespace DSubInstrument
