@@ -290,4 +290,17 @@ theorem frame_ofKraus [Fintype A] [DecidableEq A] [Fintype α]
 
 end DSubInstrument
 
+namespace SubInstrument
+
+/-- Framing a constant-output Kraus measurement tensors each operator with the identity. -/
+theorem frame_ofKraus [Fintype A] [DecidableEq A] [Fintype B] [Fintype α]
+    (R : Type*) [Fintype R] [DecidableEq R]
+    (K : α → Matrix B A ℂ) (hK : ∑ a, (K a)ᴴ * K a = 1) :
+    (ofKraus K hK).frame R =
+      ofKraus (fun a ↦ K a ⊗ₖ (1 : Matrix R R ℂ))
+        (DSubInstrument.sum_conjTranspose_kronecker_one_mul_self R hK) :=
+  DSubInstrument.frame_ofKraus R K hK
+
+end SubInstrument
+
 end Quantum

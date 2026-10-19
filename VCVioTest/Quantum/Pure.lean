@@ -29,6 +29,42 @@ open scoped ComplexOrder Kronecker Matrix.Norms.L2Operator
 
 namespace VCVioTest.QuantumPure
 
+/-! ## Constant-output composition -/
+
+section constantOutput
+
+variable {A B C R α β γ : Type*}
+  [Fintype A] [Fintype B] [Fintype C] [Fintype R]
+
+/-- Repeated relabelling infers its output register without an expected result type. -/
+noncomputable example (p : SubInstrument A B α) (f : α → β) (g : β → γ) :=
+  (p.map f).map g
+
+/-- Relabelling a bind infers the continuation's constant output register. -/
+noncomputable example (p : SubInstrument A B α) (k : α → SubInstrument B C β)
+    (g : β → γ) := (p.bind k).map g
+
+/-- Relabelling a frame infers the extended constant output register. -/
+noncomputable example (p : SubInstrument A B α) (f : α → β) := (p.frame R).map f
+
+/-- Losslessness chains through bind and relabelling without a supplied result type. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β)
+    (hp : p.Lossless) (hk : ∀ a, (k a).Lossless) (g : β → γ) := (hp.bind hk).map g
+
+/-- Losslessness chains through frame and relabelling without a supplied result type. -/
+example (p : SubInstrument A B α) (hp : p.Lossless) (f : α → β) := (hp.frame R).map f
+
+/-- The left unit law rewrites a constant-output bind through an ordinary import. -/
+example (a : α) (k : α → SubInstrument A B β) : (SubInstrument.pure a).bind k = k a := by
+  rw [SubInstrument.pure_bind]
+
+/-- Framing and sequencing rewrite using the constant-output law. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β) :
+    (p.bind k).frame R = (p.frame R).bind fun a ↦ (k a).frame R := by
+  rw [SubInstrument.frame_bind]
+
+end constantOutput
+
 /-! ## Hadamard, then measure -/
 
 /-- The projector onto the computational-basis state `i` of a qubit. -/
@@ -79,15 +115,14 @@ noncomputable example (f : ℕ → ℝ) := (measureNat.map f).branch
 
 /-- Losslessness of a projective measurement supports constant-output relabelling. -/
 example (f : ℕ → ℝ) : (measureNat.map f).Lossless := by
-  have hp : measureNat.Lossless :=
-    SubInstrument.lossless_ofProjectiveFinset natProj isStarProjection_natProj {0, 1}
-      natProj_eq_zero sum_natProj
+  have hp := SubInstrument.lossless_ofProjectiveFinset natProj isStarProjection_natProj {0, 1}
+    natProj_eq_zero sum_natProj
   exact hp.map f
 
-/-- Total-map rewriting composes with constant mapping and the dependent right unit law. -/
+/-- Total-map rewriting composes with constant mapping and the constant right unit law. -/
 example (f : ℕ → ℝ) :
     ((measureNat.map f).bind SubInstrument.pure).total = measureNat.total := by
-  rw [DSubInstrument.bind_ret, DSubInstrument.total_map]
+  rw [SubInstrument.bind_pure, DSubInstrument.total_map]
 
 /-- A framed projective measurement exposes its amplified total map through field notation. -/
 example : (measureNat.frame (Fin 2)).total = measureNat.total.amplify (Fin 2) := by
@@ -381,7 +416,7 @@ theorem norm_sq_proj_kronecker_one_applyVec_bell (a : Fin 2) :
 theorem outcomeMeasure_frame_measureZ_bell (a : Fin 2) :
     (measureZ.frame (Fin 2)).outcomeMeasure (.ofVector bell norm_bell.le) {a} =
       ENNReal.ofReal (1 / 2) := by
-  rw [measureZ, DSubInstrument.frame_ofKraus,
+  rw [measureZ, SubInstrument.frame_ofKraus,
     DSubInstrument.outcomeMeasure_ofKraus_ofVector_singleton,
     norm_sq_proj_kronecker_one_applyVec_bell]
 
@@ -389,14 +424,10 @@ theorem outcomeMeasure_frame_measureZ_bell (a : Fin 2) :
 theorem post_frame_measureZ_bell (a : Fin 2) :
     ∃ h, (measureZ.frame (Fin 2)).post (.ofVector bell norm_bell.le) a =
       .ofVector (amp • (EuclideanSpace.single a 1 ⊗ᵥ EuclideanSpace.single a 1)) h := by
-  have h := DSubInstrument.post_ofKraus_ofVector
-    (fun a ↦ proj a ⊗ₖ (1 : Matrix (Fin 2) (Fin 2) ℂ))
-    (DSubInstrument.sum_conjTranspose_kronecker_one_mul_self (Fin 2)
-      sum_conjTranspose_proj_mul_proj) bell norm_bell.le a
   have hamp : ‖amp‖ ≤ 1 := by nlinarith [norm_amp_sq, norm_nonneg amp]
   refine ⟨by simpa [norm_smul, norm_tensorVec] using hamp, SubState.ext ?_⟩
-  simpa only [measureZ, DSubInstrument.frame_ofKraus, SubState.matrix_ofVector,
-    proj_kronecker_one_applyVec_bell] using congrArg SubState.matrix h
+  simp only [measureZ, SubInstrument.frame_ofKraus, DSubInstrument.post_ofKraus_ofVector,
+    SubState.matrix_ofVector, proj_kronecker_one_applyVec_bell]
 
 /-! ## Outcome-dependent output registers -/
 
