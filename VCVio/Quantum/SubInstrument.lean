@@ -81,13 +81,19 @@ Kraus maps along paths, with the later operator multiplying on the left.
 ## Outcome-dependent output systems
 
 `SubInstrument A B α` is an abbreviation for `DSubInstrument A α (fun _ ↦ B)`.
-The dependent API applies directly, including dot notation and rewriting. The dependent type
-is an indexed monad: `ret B i` has input system `B i`. The exposed reducible `SubInstrument.pure`
-and `SubInstrument.map` facades specialize return and relabelling to a fixed output system;
-`SubInstrument.Lossless.map` supports `hp.map f` without output-family annotations.
-Constant-output operations on subinstruments, including `total`, live in `DSubInstrument` so
-field notation also applies to composites such as `(p.bind k).total` and `(p.frame R).total`.
-Constructors and the fixed-register `Monad` instance live in `SubInstrument`.
+The dependent type is an indexed monad: `ret B i` has input system `B i`.
+The exposed reducible `SubInstrument.pure`, `bind`, `frame`, `map`, `fail` and `ofKraus`
+facades keep constant-codomain results headed by `SubInstrument`. This lets field notation
+infer the output system in composites such as `(p.bind k).map g` and `(p.frame R).map f`.
+The constant `SubInstrument.Lossless.bind`, `frame` and `map` lemmas likewise support
+proof chains such as `(hp.bind hk).map g` without output-family annotations.
+
+Dependent lemmas apply through these facades by `simp`, and by `rw` unless the rewritten
+left side is headed by a facade. Constant restatements such as `SubInstrument.bind_pure`
+and `SubInstrument.frame_bind` provide those head-sensitive rewrites; their proofs delegate
+to the dependent API. Constant-output operations such as `total` live in `DSubInstrument`
+and support field notation on composites. Constructors and the fixed-register `Monad`
+instance live in `SubInstrument`.
 
 ## References
 
@@ -123,8 +129,6 @@ end DSubInstrument
 
 namespace SubInstrument
 
-export DSubInstrument (fail ofKraus)
-
 /-- Construct a subinstrument from completely positive branches with trace-nonincreasing sums. -/
 @[expose]
 def ofIsTNISum (branch : α → MatrixMap A B) (hcp : ∀ a, (branch a).IsCP)
@@ -138,6 +142,29 @@ def ofIsTNISum (branch : α → MatrixMap A B) (hcp : ∀ a, (branch a).IsCP)
 protected noncomputable def pure (a : α) : SubInstrument A A α :=
   DSubInstrument.ret (fun _ ↦ A) a
 
+/-- Sequence constant-output subinstruments, passing each outcome to its continuation. -/
+@[expose, reducible]
+protected noncomputable def bind (p : SubInstrument A B α)
+    (k : α → SubInstrument B C β) : SubInstrument A C β :=
+  DSubInstrument.bind p k
+
+/-- Extend a constant-output subinstrument by the identity on a right reference system. -/
+@[expose, reducible]
+noncomputable def frame (p : SubInstrument A B α) (R : Type*) [Fintype R] :
+    SubInstrument (A × R) (B × R) α :=
+  DSubInstrument.frame p R
+
+/-- The constant-output subinstrument that fails on every input. -/
+@[expose, reducible]
+protected noncomputable def fail : SubInstrument A B α :=
+  DSubInstrument.fail
+
+/-- A constant-output measurement specified by Kraus operators satisfying completeness. -/
+@[expose, reducible]
+noncomputable def ofKraus [Fintype α] [DecidableEq A] (K : α → Matrix B A ℂ)
+    (hK : ∑ a, (K a)ᴴ * K a = 1) : SubInstrument A B α :=
+  DSubInstrument.ofKraus K hK
+
 /-- Relabel outcomes while keeping the output system fixed. -/
 @[expose, reducible]
 protected noncomputable def map (f : α → β) (p : SubInstrument A B α) : SubInstrument A B β :=
@@ -146,10 +173,68 @@ protected noncomputable def map (f : α → β) (p : SubInstrument A B α) : Sub
 /-- Losslessness of a constant-output subinstrument, expressed by its dependent trace law. -/
 abbrev Lossless (p : SubInstrument A B α) : Prop := DSubInstrument.Lossless p
 
+/-- Sequencing lossless constant-output subinstruments preserves losslessness. -/
+theorem Lossless.bind {p : SubInstrument A B α} {k : α → SubInstrument B C β}
+    (hp : p.Lossless) (hk : ∀ a, (k a).Lossless) : (p.bind k).Lossless :=
+  DSubInstrument.Lossless.bind hp hk
+
+/-- Framing a constant-output subinstrument preserves losslessness. -/
+theorem Lossless.frame {p : SubInstrument A B α} (hp : p.Lossless)
+    (R : Type*) [Fintype R] : (p.frame R).Lossless :=
+  DSubInstrument.Lossless.frame hp R
+
 /-- Relabelling outcomes preserves losslessness for a fixed output system. -/
 theorem Lossless.map {p : SubInstrument A B α} (hp : p.Lossless) (f : α → β) :
     (p.map f).Lossless :=
   DSubInstrument.Lossless.map (C := fun _ ↦ B) hp
+
+/-- Returning the outcome after a computation leaves that computation unchanged. -/
+@[simp]
+theorem bind_pure (p : SubInstrument A B α) : p.bind SubInstrument.pure = p :=
+  DSubInstrument.bind_ret p
+
+/-- Sequencing a returned value applies the continuation to that value. -/
+@[simp]
+theorem pure_bind (a : α) (k : α → SubInstrument A B β) :
+    (SubInstrument.pure a).bind k = k a :=
+  DSubInstrument.ret_bind a k
+
+/-- Sequencing constant-output subinstruments is associative. -/
+theorem bind_assoc {D γ : Type*} [Fintype D] (p : SubInstrument A B α)
+    (k : α → SubInstrument B C β) (l : β → SubInstrument C D γ) :
+    (p.bind k).bind l = p.bind fun a ↦ (k a).bind l :=
+  DSubInstrument.bind_assoc p k l
+
+/-- Relabelling outcomes is sequencing with return at the relabelled value. -/
+theorem map_eq_bind_pure (f : α → β) (p : SubInstrument A B α) :
+    p.map f = p.bind fun a ↦ SubInstrument.pure (f a) := by
+  simpa only [SubInstrument.map, SubInstrument.bind, SubInstrument.pure] using
+    DSubInstrument.map_eq_bind_ret (C := fun _ ↦ B) f p
+
+/-- Failure absorbs every constant-output continuation. -/
+@[simp]
+theorem fail_bind (k : α → SubInstrument B C β) :
+    (SubInstrument.fail : SubInstrument A B α).bind k = SubInstrument.fail :=
+  DSubInstrument.fail_bind k
+
+/-- Sequencing with failing constant-output continuations fails. -/
+@[simp]
+theorem bind_fail (p : SubInstrument A B α) :
+    (p.bind fun _ ↦ SubInstrument.fail : SubInstrument A C β) = SubInstrument.fail :=
+  DSubInstrument.bind_fail p
+
+/-- Framing commutes with constant-output sequencing. -/
+theorem frame_bind (R : Type*) [Fintype R] (p : SubInstrument A B α)
+    (k : α → SubInstrument B C β) :
+    (p.bind k).frame R = (p.frame R).bind fun a ↦ (k a).frame R :=
+  DSubInstrument.frame_bind R p k
+
+/-- Framing return gives return on the extended register. -/
+@[simp]
+theorem frame_pure (R : Type*) [Fintype R] (a : α) :
+    (SubInstrument.pure a : SubInstrument A A α).frame R =
+      (SubInstrument.pure a : SubInstrument (A × R) (A × R) α) :=
+  DSubInstrument.frame_ret R a
 
 end SubInstrument
 
@@ -220,8 +305,6 @@ theorem trace_re_branch_apply_le_total (p : DSubInstrument A α (fun _ ↦ B)) (
 end DSubInstrument
 
 namespace SubInstrument
-
-export DSubInstrument (familyTrace_branch)
 
 /-- The branch of `pure a` at `a` is the identity map. -/
 @[simp]
@@ -357,11 +440,11 @@ namespace SubInstrument
 variable {M : Type u} [Fintype M] {α β : Type w}
 
 /-- Subinstruments from a register `M` to itself form a monad under
-`Quantum.SubInstrument.pure` and `Quantum.DSubInstrument.bind`, with `Quantum.DSubInstrument.map`
+`Quantum.SubInstrument.pure` and `Quantum.SubInstrument.bind`, with `Quantum.SubInstrument.map`
 as functorial action. This monad is the semantic domain of quantum programs on `M`. -/
 noncomputable instance : Monad (SubInstrument M M) where
   pure := SubInstrument.pure
-  bind := DSubInstrument.bind
+  bind := SubInstrument.bind
   map := SubInstrument.map
 
 /-- Monadic `pure` on `SubInstrument M M` is `Quantum.SubInstrument.pure`. -/
@@ -369,12 +452,12 @@ noncomputable instance : Monad (SubInstrument M M) where
 theorem pure_eq (a : α) : (pure a : SubInstrument M M α) = SubInstrument.pure a :=
   rfl
 
-/-- Monadic bind on `SubInstrument M M` is `Quantum.DSubInstrument.bind`. -/
+/-- Monadic bind on `SubInstrument M M` is `Quantum.SubInstrument.bind`. -/
 @[simp]
 theorem bind_eq (p : SubInstrument M M α) (k : α → SubInstrument M M β) : p >>= k = p.bind k :=
   rfl
 
-/-- Functorial map on `SubInstrument M M` is `Quantum.DSubInstrument.map`. -/
+/-- Functorial map on `SubInstrument M M` is `Quantum.SubInstrument.map`. -/
 @[simp]
 theorem map_eq (f : α → β) (p : SubInstrument M M α) : f <$> p = p.map f :=
   rfl
