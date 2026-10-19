@@ -5,7 +5,7 @@ Authors: Quang Dao
 -/
 
 module
-public import VCVio.Quantum.SubInstrument
+public import VCVio.Quantum.Semantics
 
 /-!
 # Choi matrix and Kraus decomposition regression tests
@@ -25,7 +25,9 @@ On a system with an arbitrary finite basis `A`:
   `single b b 1 * single a a 1`.
 
 Explicit calculations also check a complex rectangular Choi matrix, direct Stinespring recovery
-of qubit dephasing, and a noncommuting postselection/bit-flip path.
+of qubit dephasing, and a noncommuting postselection/bit-flip path. Ordinary-import canaries
+check constant-output relabelling after sequencing and framing, chained losslessness proofs,
+and rewrites with the constant-output laws.
 -/
 
 public section
@@ -34,6 +36,76 @@ open Quantum Matrix
 open scoped ComplexOrder
 
 namespace VCVioTest.QuantumKraus
+
+/-! ## Constant-output composition through ordinary imports -/
+
+noncomputable section constantOutput
+
+variable {A B C α β γ : Type*} [Fintype A] [Fintype B] [Fintype C]
+
+/-- Relabelling after sequencing infers the output system without an expected type. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β) (f : β → γ) :=
+  (p.bind k).map f
+
+/-- Relabelling after framing infers the extended output system. -/
+example (p : SubInstrument A B α) (f : α → β) := (p.frame Unit).map f
+
+/-- Sequencing and relabelling preserve losslessness by chained field notation. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β)
+    (hp : p.Lossless) (hk : ∀ a, (k a).Lossless) (f : β → γ) :
+    ((p.bind k).map f).Lossless := by
+  exact (hp.bind hk).map f
+
+/-- Framing and relabelling preserve losslessness by chained field notation. -/
+example (p : SubInstrument A B α) (hp : p.Lossless) (f : α → β) :
+    ((p.frame Unit).map f).Lossless := by
+  exact (hp.frame Unit).map f
+
+/-- Dependent total-map laws simplify framed and relabelled constant-output computations. -/
+example (p : SubInstrument A B α) (f : α → β) :
+    ((p.frame Unit).map f).total = p.total.amplify Unit := by
+  simp
+
+/-- The right unit law rewrites the constant bind facade. -/
+example (p : SubInstrument A B α) : p.bind SubInstrument.pure = p := by
+  rw [SubInstrument.bind_pure]
+
+/-- The left unit law rewrites constant return followed by constant bind. -/
+example (a : α) (k : α → SubInstrument A B β) : (SubInstrument.pure a).bind k = k a := by
+  rw [SubInstrument.pure_bind]
+
+/-- Associativity rewrites nested constant binds. -/
+example {D : Type*} [Fintype D] (p : SubInstrument A B α)
+    (k : α → SubInstrument B C β) (l : β → SubInstrument C D γ) :
+    (p.bind k).bind l = p.bind fun a ↦ (k a).bind l := by
+  rw [SubInstrument.bind_assoc]
+
+/-- Relabelling rewrites to a constant bind followed by return. -/
+example (p : SubInstrument A B α) (f : α → β) :
+    p.map f = p.bind fun a ↦ SubInstrument.pure (f a) := by
+  rw [SubInstrument.map_eq_bind_pure]
+
+/-- Failure before sequencing rewrites through the constant facades. -/
+example (k : α → SubInstrument B C β) :
+    (SubInstrument.fail : SubInstrument A B α).bind k = SubInstrument.fail := by
+  rw [SubInstrument.fail_bind]
+
+/-- Failing continuations rewrite through the constant bind facade. -/
+example (p : SubInstrument A B α) :
+    (p.bind fun _ ↦ SubInstrument.fail : SubInstrument A C β) = SubInstrument.fail := by
+  rw [SubInstrument.bind_fail]
+
+/-- Framing rewrites through constant sequencing. -/
+example (p : SubInstrument A B α) (k : α → SubInstrument B C β) :
+    (p.bind k).frame Unit = (p.frame Unit).bind fun a ↦ (k a).frame Unit := by
+  rw [SubInstrument.frame_bind]
+
+/-- Framing constant return rewrites to return on the extended register. -/
+example (a : α) : (SubInstrument.pure a : SubInstrument A A α).frame Unit =
+    (SubInstrument.pure a : SubInstrument (A × Unit) (A × Unit) α) := by
+  rw [SubInstrument.frame_pure]
+
+end constantOutput
 
 variable {A : Type*} [DecidableEq A]
 
@@ -151,25 +223,26 @@ example [Fintype A] (S : Finset A) :
 
 /-- The computational-basis measurement as a subinstrument. -/
 noncomputable def measure [Fintype A] : SubInstrument A A A :=
-  DSubInstrument.ofKraus (fun a ↦ Matrix.single a a (1 : ℂ)) sum_conjTranspose_single_mul_single
+  SubInstrument.ofKraus (fun a ↦ Matrix.single a a (1 : ℂ)) sum_conjTranspose_single_mul_single
 
 /-- The computational-basis measurement has Kraus operators for all branches at once, with the
 completeness relation. -/
 example [Fintype A] : ∃ K : A → A × A → Matrix A A ℂ,
-    (∀ a, (measure : SubInstrument A A A).branch a = ∑ k, MatrixMap.conj (K a k)) ∧
+    (∀ a, measure.branch a = ∑ k, MatrixMap.conj (K a k)) ∧
       ∑ a, ∑ k, (K a k)ᴴ * K a k = 1 :=
-  (DSubInstrument.lossless_ofKraus _ _).exists_kraus
+  (DSubInstrument.lossless_ofKraus (fun a ↦ Matrix.single a a (1 : ℂ))
+    sum_conjTranspose_single_mul_single).exists_kraus
 
 /-- Each branch of a measurement has Kraus operators. -/
 example [Fintype A] (a : A) :
-    ∃ K : A × A → Matrix A A ℂ, (measure : SubInstrument A A A).branch a =
+    ∃ K : A × A → Matrix A A ℂ, measure.branch a =
       ∑ k, MatrixMap.conj (K k) :=
   measure.exists_kraus_branch a
 
 /-- Measuring twice: the branch at `b` sums the Kraus maps of the path operators
 `single b b 1 * single a a 1`. -/
 example [Fintype A] (b : A) :
-    ((measure : SubInstrument A A A).bind fun _ ↦ measure).branch b =
+    (measure.bind fun _ ↦ measure).branch b =
       ∑ x : A × Unit × Unit,
         MatrixMap.conj (Matrix.single b b (1 : ℂ) * Matrix.single x.1 x.1 1) :=
   DSubInstrument.branch_bind_eq_sum_conj_mul _ _ (K := fun a _ ↦ Matrix.single a a 1)
@@ -238,7 +311,7 @@ theorem conjTranspose_bitFlip_mul : bitFlipᴴ * bitFlip = 1 := by
 
 /-- The single-outcome bit-flip instrument. -/
 noncomputable def bitFlipInstrument : SubInstrument (Fin 2) (Fin 2) Unit :=
-  DSubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
+  SubInstrument.ofKraus (fun _ ↦ bitFlip) (by simpa using conjTranspose_bitFlip_mul)
 
 /-- Postselection on the zero outcome of a computational-basis measurement. -/
 noncomputable def postselectZero : SubInstrument (Fin 2) (Fin 2) Unit :=
