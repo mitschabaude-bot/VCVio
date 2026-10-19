@@ -180,12 +180,10 @@ theorem Lossless.map {p : SubInstrument A B α} (hp : p.Lossless) (f : α → β
   DSubInstrument.Lossless.map (C := fun _ ↦ B) hp
 
 /-- Returning the outcome after a computation leaves that computation unchanged. -/
-@[simp]
 theorem bind_pure (p : SubInstrument A B α) : p.bind SubInstrument.pure = p :=
   DSubInstrument.bind_ret p
 
 /-- Sequencing a returned value applies the continuation to that value. -/
-@[simp]
 theorem pure_bind (a : α) (k : α → SubInstrument A B β) :
     (SubInstrument.pure a).bind k = k a :=
   DSubInstrument.ret_bind a k
@@ -203,13 +201,11 @@ theorem map_eq_bind_pure (f : α → β) (p : SubInstrument A B α) :
     DSubInstrument.map_eq_bind_ret (C := fun _ ↦ B) f p
 
 /-- Failure absorbs every constant-output continuation. -/
-@[simp]
 theorem fail_bind (k : α → SubInstrument B C β) :
     (SubInstrument.fail : SubInstrument A B α).bind k = SubInstrument.fail :=
   DSubInstrument.fail_bind k
 
 /-- Sequencing with failing constant-output continuations fails. -/
-@[simp]
 theorem bind_fail (p : SubInstrument A B α) :
     (p.bind fun _ ↦ SubInstrument.fail : SubInstrument A C β) = SubInstrument.fail :=
   DSubInstrument.bind_fail p
@@ -221,7 +217,6 @@ theorem frame_bind (R : Type*) [Fintype R] (p : SubInstrument A B α)
   DSubInstrument.frame_bind R p k
 
 /-- Framing return gives return on the extended register. -/
-@[simp]
 theorem frame_pure (R : Type*) [Fintype R] (a : α) :
     (SubInstrument.pure a : SubInstrument A A α).frame R =
       (SubInstrument.pure a : SubInstrument (A × R) (A × R) α) :=
@@ -233,7 +228,6 @@ theorem frame_map (R : Type*) [Fintype R] (f : α → β) (p : SubInstrument A B
   simpa only using DSubInstrument.frame_map (C := fun _ ↦ B) R f p
 
 /-- Framing the failing constant-output subinstrument gives the failing subinstrument. -/
-@[simp]
 theorem frame_fail (R : Type*) [Fintype R] :
     (SubInstrument.fail : SubInstrument A B α).frame R = SubInstrument.fail :=
   DSubInstrument.frame_fail R
@@ -309,14 +303,12 @@ end DSubInstrument
 namespace SubInstrument
 
 /-- The branch of `pure a` at `a` is the identity map. -/
-@[simp]
 theorem branch_pure_self (a : α) :
     (SubInstrument.pure a : SubInstrument A A α).branch a = LinearMap.id := by
   classical
   exact Pi.single_eq_same a _
 
 /-- The branch of `pure a` away from `a` is zero. -/
-@[simp]
 theorem branch_pure_of_ne {a a' : α} (h : a' ≠ a) :
     (SubInstrument.pure a : SubInstrument A A α).branch a' = 0 := by
   classical
