@@ -58,6 +58,7 @@ public import VCVioTest.MerkleTreeExtractability
 public import VCVioTest.MerkleTreeHashForest
 public import VCVioTest.MerkleTreeHashing
 public import VCVioTest.MerkleTreeInstability
+public import VCVioTest.MerkleTreeMixed
 public import VCVioTest.MerkleTreeMonadic
 public import VCVioTest.MerkleTreeMultiExtractability
 public import VCVioTest.ModuleAPI.Cache

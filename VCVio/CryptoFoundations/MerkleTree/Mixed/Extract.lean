@@ -35,7 +35,7 @@ match in a log of node queries over raw leaves; this one also inverts the leaf h
 through injected levels.
 -/
 
-@[expose] public section
+public section
 
 namespace MixedMerkleTree
 
@@ -61,6 +61,7 @@ structure Injective (cache : Cache Payload Digest) : Prop where
 
 /-- The digests extraction under `root` can reach: `root` and the children of cached
 compressions. -/
+@[expose]
 def Known (cache : Cache Payload Digest) (root y : Digest) : Prop :=
   y = root ∨ ∃ left right parent, cache.node left right parent ∧ (y = left ∨ y = right)
 
@@ -79,10 +80,12 @@ section Extract
 variable {Payload : Type u} {Digest : Type v}
 
 /-- Some `a` with `P a`, if there is one. -/
+@[expose]
 noncomputable def pick {α : Type*} (P : α → Prop) : Option α :=
   open Classical in if h : ∃ a, P a then some (Classical.choose h) else none
 
 /-- The children of `parent`: a cached pair compressing to it. -/
+@[expose]
 noncomputable def children (cache : Cache Payload Digest) (parent : Digest) :
     Option (Digest × Digest) :=
   pick fun pair ↦ cache.node pair.1 pair.2 parent
@@ -90,6 +93,7 @@ noncomputable def children (cache : Cache Payload Digest) (parent : Digest) :
 /-- The node `i` at depth `t` below `root` (`2 ^ t` nodes), walking down cached compressions. The
 parent of node `i` is node `i / 2`, and node `i` is its left child for even `i`; a node at an
 injecting depth is the compression of the pair of its children with an injected hash. -/
+@[expose]
 noncomputable def nodeAt (cache : Cache Payload Digest) (inj : ℕ → Bool) :
     (t i : ℕ) → (root : Digest) → Option Digest
   | 0, _, root => some root
@@ -99,6 +103,7 @@ noncomputable def nodeAt (cache : Cache Payload Digest) (inj : ℕ → Bool) :
 
 /-- The payload of node `i` at depth `t` of the tree of height `K` under `root`: a cached preimage
 of the leaf if `t = K`, or of the hash the node is compressed with otherwise. -/
+@[expose]
 noncomputable def extract (cache : Cache Payload Digest) (inj : ℕ → Bool) (K t i : ℕ)
     (root : Digest) : Option Payload :=
   (nodeAt cache inj t i root).bind fun y ↦
@@ -232,6 +237,7 @@ variable {Payload : Type u} {Digest : Type v} (cache : Cache Payload Digest)
 
 /-- Every query of a climb is cached: each compression with a sibling, and each injected payload's
 leaf hash and its compression. -/
+@[expose]
 def ClimbCached (pays : ℕ → Option Payload) : ℕ → Digest → List Digest → Prop
   | _, _, [] => True
   | i, x, s :: path =>

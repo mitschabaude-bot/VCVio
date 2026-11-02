@@ -153,6 +153,11 @@ public import VCVio.CryptoFoundations.MerkleTree.Inductive.QueryBound
 public import VCVio.CryptoFoundations.MerkleTree.Inductive.Uniqueness
 public import VCVio.CryptoFoundations.MerkleTree.Instability
 public import VCVio.CryptoFoundations.MerkleTree.LabelledPath
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Defs
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Extract
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Forest
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Inductive
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Multi
 public import VCVio.CryptoFoundations.MerkleTree.MultiExtractability.DelayedObservation
 public import VCVio.CryptoFoundations.MerkleTree.MultiExtractability.Endgame
 public import VCVio.CryptoFoundations.MerkleTree.MultiExtractability.Evolution

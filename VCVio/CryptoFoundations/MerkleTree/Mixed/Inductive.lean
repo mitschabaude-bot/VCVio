@@ -27,7 +27,7 @@ payloads:
   reversed path.
 -/
 
-@[expose] public section
+public section
 
 namespace MixedMerkleTree
 
@@ -41,11 +41,13 @@ variable {α : Type u}
 
 /-- The leaves of the perfect subtree of height `k` at heap index `t`: leaf `j` is
 `g (t * 2 ^ k + j)`. -/
+@[expose]
 def perfectLeaves (g : ℕ → α) : (k : ℕ) → ℕ → LeafData α (Skeleton.perfect k)
   | 0, t => .leaf (g t)
   | k + 1, t => .internal (perfectLeaves g k (2 * t)) (perfectLeaves g k (2 * t + 1))
 
 /-- The digest of the node at height `j` and heap index `t` of the tree with leaves `g`. -/
+@[expose]
 def nodeValue (compress : α → α → α) (g : ℕ → α) (j t : ℕ) : α :=
   (populateUp (perfectLeaves g j t) compress).getRootValue
 

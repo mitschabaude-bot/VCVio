@@ -424,6 +424,15 @@ structure CostModel (spec : OracleSpec ι) (ω : Type) [AddCommMonoid ω] where
 Key results: `fst_map_costDist` (instrumentation is transparent),
 `prEvent_costDist_gt_le_expectedCost_div` (Markov's inequality).
 
+## Merkle Trees With Injected Payloads
+
+`VCVio/CryptoFoundations/MerkleTree/Mixed/` (namespace `MixedMerkleTree`) covers perfect binary Merkle trees whose leaves hash payloads and whose inner levels may inject further payloads, committed by a cap of `2 ^ h` nodes: the shape of commitments to several matrices of different heights under one root, such as Plonky3's `MerkleTreeMmcs`. The leaf hash and the compression are pure functions.
+
+- `node`, `cap`, `climb` (a single opening, siblings from the bottom up), `climb_cap` (honest openings verify) and `climb_binding` (accepted openings of one index bind, or give a collision of the leaf hash or the compression) are in `Mixed/Defs.lean`.
+- `frontier`, `levelM`, `walk`, `prune` and `siblingCount` are pruned multi-openings with one sibling list; `exists_climb_of_walk` restores every query's single opening from an accepted walk, and `walk_prune` shows honest multi-openings are accepted (`Mixed/Multi.lean`).
+- `Cache`, `nodeAt` and `extract` read a tree back from the relations of answered hash queries, inverting the leaf hash; `extract_eq_of_noPrediction` is stability under cache growth and `extract_of_climb` extraction from an accepted cached climb (`Mixed/Extract.lean`).
+- Without injections the tree is `InductiveMerkleTree` over `Skeleton.perfect` (`climb_eq_getPutativeRootWithHash`, `Mixed/Inductive.lean`), and the cap is a `MerkleHashForest.Forest` (`evaluateForestWithHash_forest`, `Mixed/Forest.lean`).
+
 ## Common Gotchas
 
 1. **Avoid `guard`**: use `return (b == b')` or `return decide (r x w)` instead. `guard` requires `OptionT` / `Alternative`.

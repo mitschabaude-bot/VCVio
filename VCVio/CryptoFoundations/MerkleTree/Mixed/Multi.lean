@@ -31,7 +31,7 @@ holds every sibling no opened leaf's path recomputes (Plonky3's `verify_batch_pr
   tree's nodes and takes every sibling.
 -/
 
-@[expose] public section
+public section
 
 namespace MixedMerkleTree
 
@@ -44,6 +44,7 @@ section Defs
 variable (hash : Payload → Digest) (compress : Digest → Digest → Digest) (fill : Digest)
 
 /-- The distinct indices, sorted, each with its lead: the first query opening it. -/
+@[expose]
 def frontier (indices : List ℕ) : List (ℕ × ℕ) :=
   (indices.dedup.mergeSort (· ≤ ·)).map fun i ↦ (i, indices.idxOf i)
 
@@ -51,6 +52,7 @@ def frontier (indices : List ℕ) : List (ℕ × ℕ) :=
 `(index, lead, digest)`, sorted by index, grouped by parent; the parent of two nodes compresses
 them, the parent of one compresses it with the next sibling of `sibs` on the other side. The
 parents, each led by its first child's lead, and the siblings left. -/
+@[expose]
 def levelM {m : Type v → Type*} [Monad m] (compress : Digest → Digest → m Digest) :
     List (ℕ × ℕ × Digest) → List Digest → m (List (ℕ × ℕ × Digest) × List Digest)
   | [], sibs => pure ([], sibs)
@@ -74,6 +76,7 @@ abbrev level (nodes : List (ℕ × ℕ × Digest)) (sibs : List Digest) :
 
 /-- The walk over `levels` levels from the frontier `nodes`, injecting into the parents at depth
 `d` below the walk's top the hash of their lead `q`'s payload `f q` wherever `pays d = some f`. -/
+@[expose]
 def walk (pays : ℕ → Option (ℕ → Payload)) :
     ℕ → List (ℕ × ℕ × Digest) → List Digest → List (ℕ × ℕ × Digest) × List Digest
   | 0, nodes, sibs => (nodes, sibs)
@@ -83,6 +86,7 @@ def walk (pays : ℕ → Option (ℕ → Payload)) :
       (level compress fill nodes sibs).2
 
 /-- One level of the frontier's indices, sorted: the parents, and the number of siblings taken. -/
+@[expose]
 def countLevel : List ℕ → List ℕ × ℕ
   | [] => ([], 0)
   | [i] => ([i / 2], 1)
@@ -93,12 +97,14 @@ def countLevel : List ℕ → List ℕ × ℕ
       ((i / 2) :: (countLevel (j :: rest)).1, (countLevel (j :: rest)).2 + 1)
 
 /-- The number of siblings a walk over `levels` levels from the frontier indices `nodes` takes. -/
+@[expose]
 def siblingCount : ℕ → List ℕ → ℕ
   | 0, _ => 0
   | levels + 1, nodes => (countLevel nodes).2 + siblingCount levels (countLevel nodes).1
 
 /-- One level of `prune` at height `l`: the parents of the frontier `nodes`, each led by its first
 child's lead, and the siblings taken, from the leads' full paths `paths`. -/
+@[expose]
 def pruneLevel (paths : List (List Digest)) (l : ℕ) :
     List (ℕ × ℕ) → List (ℕ × ℕ) × List Digest
   | [] => ([], [])
@@ -112,6 +118,7 @@ def pruneLevel (paths : List (List Digest)) (l : ℕ) :
 
 /-- The siblings a walk over `levels` levels from the frontier `nodes` at height `l` takes, read
 off the queries' full paths `paths`. -/
+@[expose]
 def pruneWalk (paths : List (List Digest)) : ℕ → ℕ → List (ℕ × ℕ) → List Digest
   | 0, _, _ => []
   | levels + 1, l, nodes =>
@@ -120,6 +127,7 @@ def pruneWalk (paths : List (List Digest)) : ℕ → ℕ → List (ℕ × ℕ) �
 
 /-- The pruned siblings of the openings at `indices` with full paths `paths`, from the bottom up,
 over `levels` levels. -/
+@[expose]
 def prune (levels : ℕ) (indices : List ℕ) (paths : List (List Digest)) : List Digest :=
   pruneWalk fill paths levels 0 (frontier indices)
 
@@ -304,6 +312,7 @@ variable (hash : Payload → Digest) (compress : Digest → Digest → Digest) (
   (indices : List ℕ) (leaf : ℕ → Digest) (pays : ℕ → Option (ℕ → Payload)) (L : ℕ)
 
 /-- The payloads query `r` injects, by depth below the walk's top. -/
+@[expose]
 def paysOf (r : ℕ) (d : ℕ) : Option Payload := (pays d).map (· r)
 
 /-- A frontier at height `l` of a walk over `L` levels: sorted by index, every query below one of
@@ -488,6 +497,7 @@ variable (hash : Payload → Digest) (compress : Digest → Digest → Digest) (
   (N : ℕ → ℕ → Digest)
 
 /-- The nodes `ns` of height `l`, each with its digest `N l i`. -/
+@[expose]
 def nodesOf (l : ℕ) (ns : List (ℕ × ℕ)) : List (ℕ × ℕ × Digest) :=
   ns.map fun e ↦ (e.1, e.2, N l e.1)
 

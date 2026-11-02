@@ -23,7 +23,7 @@ with `hash` and compresses a node operation's two children with `compress`, the 
 the cap.
 -/
 
-@[expose] public section
+public section
 
 namespace MixedMerkleTree
 
@@ -38,14 +38,17 @@ abbrev Operations (Payload : Type u) (Digest : Type v) :=
   MerkleHashForest.Tree BinaryOperationKind Unit Unit Payload Digest
 
 /-- The leaf operation on `p`. -/
+@[expose]
 def leafOp (p : Payload) : Operations Payload Digest :=
   .operation .leaf () () [.payload p]
 
 /-- The node operation on two children. -/
+@[expose]
 def nodeOp (left right : Operations Payload Digest) : Operations Payload Digest :=
   .operation .node () () [.child left, .child right]
 
 /-- The operation tree of the node at height `l` and index `i`, as `node`. -/
+@[expose]
 def nodeTree (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ → Payload)) :
     ℕ → ℕ → Operations Payload Digest
   | 0, i => leafOp (leaves i)
@@ -56,6 +59,7 @@ def nodeTree (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ →
     | none => nodeOp (nodeTree K leaves inj l (2 * i)) (nodeTree K leaves inj l (2 * i + 1))
 
 /-- The cap of height `h` as a forest of `2 ^ h` roots. -/
+@[expose]
 def forest (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ → Payload)) (h : ℕ) :
     Forest BinaryOperationKind Unit Unit Payload Digest (2 ^ h) :=
   ⟨(List.range (2 ^ h)).map (nodeTree K leaves inj (K - h)), by

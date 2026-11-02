@@ -33,7 +33,7 @@ are pure functions, as in the `…WithHash` layer of `InductiveMerkleTree`.
   schedule open the same payloads, or exhibit a collision of `hash` or of `compress`.
 -/
 
-@[expose] public section
+public section
 
 namespace MixedMerkleTree
 
@@ -46,10 +46,12 @@ section Defs
 variable (hash : Payload → Digest) (compress : Digest → Digest → Digest)
 
 /-- Compress `x` at index `i` with its sibling `s`: `x` on the left at an even index. -/
+@[expose]
 def pairUp (i : ℕ) (x s : Digest) : Digest :=
   if i % 2 = 0 then compress x s else compress s x
 
 /-- A node after its level's injection: compressed with the hash of the payload, if any. -/
+@[expose]
 def inject : Option Payload → Digest → Digest
   | some p, z => compress z (hash p)
   | none, z => z
@@ -57,29 +59,34 @@ def inject : Option Payload → Digest → Digest
 /-- The node at height `l` and index `i` of the tree of height `K`: a leaf hashes its payload
 `leaves i`, an inner node compresses its children and, if its depth `K - l` injects, compresses the
 result with the hash of its payload. -/
+@[expose]
 def node (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ → Payload)) : ℕ → ℕ → Digest
   | 0, i => hash (leaves i)
   | l + 1, i => inject hash compress ((inj (K - (l + 1))).map (· i))
       (compress (node K leaves inj l (2 * i)) (node K leaves inj l (2 * i + 1)))
 
 /-- The cap of height `h`: the `2 ^ h` nodes at depth `h`. -/
+@[expose]
 def cap (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ → Payload)) (h : ℕ) : List Digest :=
   (List.range (2 ^ h)).map (node hash compress K leaves inj (K - h))
 
 /-- Climb from `x` at index `i` through the siblings `path`, from the bottom up, injecting the hash
 of `p` into the node at depth `d` below the top wherever `pays d = some p`. -/
+@[expose]
 def climb (pays : ℕ → Option Payload) : ℕ → Digest → List Digest → Digest
   | _, x, [] => x
   | i, x, s :: path =>
     climb pays (i / 2) (inject hash compress (pays path.length) (pairUp compress i x s)) path
 
 /-- The siblings of the honest opening of leaf `i`, `n` of them from the bottom up. -/
+@[expose]
 def siblings (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (ℕ → Payload)) (i n : ℕ) :
     List Digest :=
   (List.range n).map fun l ↦ node hash compress K leaves inj l ((i >>> l) ^^^ 1)
 
 /-- The injected payloads of the honest opening of leaf `i` through `n` levels, by depth below its
 top. -/
+@[expose]
 def pays (K : ℕ) (inj : ℕ → Option (ℕ → Payload)) (i n : ℕ) (d : ℕ) : Option Payload :=
   (inj (K - (n - d))).map (· (i >>> (n - d)))
 
@@ -203,10 +210,12 @@ theorem climb_cap (K : ℕ) (leaves : ℕ → Payload) (inj : ℕ → Option (�
     List.getElem?_range hlt, Option.map_some, Option.getD_some]
 
 /-- Two distinct payloads with one hash. -/
+@[expose]
 def HashCollision : Prop :=
   ∃ p p' : Payload, p ≠ p' ∧ hash p = hash p'
 
 /-- Two distinct pairs with one compression. -/
+@[expose]
 def CompressCollision : Prop :=
   ∃ a b a' b' : Digest, (a, b) ≠ (a', b') ∧ compress a b = compress a' b'
 
