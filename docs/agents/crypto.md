@@ -426,7 +426,7 @@ Key results: `fst_map_costDist` (instrumentation is transparent),
 
 ## Merkle Trees With Injected Payloads
 
-`VCVio/CryptoFoundations/MerkleTree/Mixed/` (namespace `MixedMerkleTree`) covers perfect binary Merkle trees whose leaves hash payloads and whose inner levels may inject further payloads, committed by a cap of `2 ^ h` nodes: the shape of commitments to several matrices of different heights under one root, such as Plonky3's `MerkleTreeMmcs`. The leaf hash and the compression are pure functions.
+`VCVio/CryptoFoundations/MerkleTree/Mixed/` (namespace `MixedMerkleTree`) covers perfect binary Merkle trees whose leaves hash payloads and whose inner levels may inject further payloads, committed by a cap of `2 ^ h` nodes: the shape of commitments to several matrices of different heights under one root, such as Plonky3's mixed-matrix commitment scheme. The leaf hash and the compression are pure functions.
 
 - `node`, `cap`, `climb` (a single opening, siblings from the bottom up), `climb_cap` (honest openings verify) and `climb_binding` (accepted openings of one index bind, or give a collision of the leaf hash or the compression) are in `Mixed/Defs.lean`.
 - `frontier`, `levelM`, `walk`, `prune` and `siblingCount` are pruned multi-openings with one sibling list; `exists_climb_of_walk` restores every query's single opening from an accepted walk, and `walk_prune` shows honest multi-openings are accepted (`Mixed/Multi.lean`).
