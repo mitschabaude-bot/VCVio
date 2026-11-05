@@ -159,16 +159,24 @@ def Position.parent (h : ℕ) (inj : ℕ → Bool) (v : Position) : Option (Posi
 /-- Every parent precedes its child in the top-down rank. -/
 theorem Position.parent_rank_lt (h : ℕ) (inj : ℕ → Bool) (v u : Position) (right : Bool)
     (hp : v.parent h inj = some (u, right)) : u.rank < v.rank := by
-  sorry
+  rcases v with ⟨d, i, s⟩
+  cases s <;> simp only [parent] at hp
+  all_goals
+    (try split_ifs at hp) <;>
+      simp only [Option.some.injEq, Prod.mk.injEq] at hp
+  all_goals
+    obtain ⟨rfl, rfl⟩ := hp
+    simp only [rank]
+    omega
 
 /-- Ancestors in nearest-parent-first order, recording the extractor calls needed for a target. -/
 @[expose]
 def Position.ancestors (h : ℕ) (inj : ℕ → Bool) (v : Position) : List Position :=
-  match hp : v.parent h inj with
+  match _hp : v.parent h inj with
   | none => []
   | some (u, _) => u :: u.ancestors h inj
 termination_by v.rank
-decreasing_by sorry
+decreasing_by exact Position.parent_rank_lt h inj _ _ _ _hp
 
 /-- Read a compression pair, using a fixed pair of default digests for payload predictions. -/
 @[expose]
@@ -230,14 +238,14 @@ noncomputable def derivedAdversary (hash : Payload → Digest)
     (A : MerkleAdversary Coins Payload Digest) (X : ExtractorMap Coins Payload Digest)
     (v : Position) : NodeAdversary Coins Payload Digest :=
   fun c ↦
-    let target := match hp : v.parent h inj with
+    let target := match _hp : v.parent h inj with
       | none => (A c).1.getD v.index (hash p₀)
       | some (u, right) =>
         let ab := opChildren (hash p₀) (X (derivedAdversary hash compress p₀ K h inj A X u) c)
         if right then ab.2 else ab.1
     (target, revealedOps hash compress p₀ K h inj A v c)
 termination_by v.rank
-decreasing_by sorry
+decreasing_by exact Position.parent_rank_lt h inj _ _ _ _hp
 
 /-- The assigned extractor's operation at a position. -/
 @[expose]
@@ -271,6 +279,220 @@ def Opening.Disagrees (K h : ℕ) (leaves : ℕ → Payload) (injections : ℕ �
   o.payload ≠ leaves o.index ∨
     ∃ d < K - h, o.pays d ≠ MixedMerkleTree.pays K injections o.index (K - h) d
 
+/-- The canonical operation computed by an opening at a position on its path. -/
+@[expose]
+def Opening.opAt (hash : Payload → Digest) (compress : Digest → Digest → Digest)
+    (p₀ : Payload) (K h : ℕ) (v : Position) (o : Opening Payload Digest) : Op Payload Digest :=
+  match v.stage with
+  | .leaf => .inl o.payload
+  | .children => .inr (o.childPair hash compress p₀ K h v.depth)
+  | .payload => .inl ((o.pays (v.depth - h)).getD p₀)
+  | .injection => .inr
+      (answer hash compress (.inr (o.childPair hash compress p₀ K h v.depth)),
+        hash ((o.pays (v.depth - h)).getD p₀))
+
+/-- A scheduled inner depth of a verifying opening supplies a payload. -/
+theorem Opening.Verifies.pays_some (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hv : o.Verifies hash compress K h inj cap) (d : ℕ)
+    (hd : h ≤ d) (hdK : d < K) (hinj : inj d = true) :
+    ∃ p, o.pays (d - h) = some p := by
+  have hs := hv.2.2.2.2.1 (d - h) (by omega)
+  rw [Nat.add_sub_of_le hd, hinj] at hs
+  exact Option.isSome_iff_exists.mp hs
+
+/-- Every node index along a verifying opening is in the range at its global depth. -/
+theorem Opening.Verifies.index_lt (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hv : o.Verifies hash compress K h inj cap) (d : ℕ) (hd : d ≤ K) :
+    o.index >>> (K - d) < 2 ^ d := by
+  rw [Nat.shiftRight_eq_div_pow, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _),
+    ← Nat.pow_add, Nat.add_sub_cancel' hd]
+  exact hv.2.2.1
+
+/-- A valid position on a verifying opening's path reveals exactly its canonical operation. -/
+theorem Opening.ops_eq_singleton (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hver : o.Verifies hash compress K h inj cap) (v : Position)
+    (hv : v.Valid K h inj) (hi : o.index >>> (K - v.depth) = v.index) :
+    o.ops hash compress p₀ K h v = [o.opAt hash compress p₀ K h v] := by
+  rcases v with ⟨d, i, s⟩
+  cases s <;> simp only [Position.Valid] at hv
+  all_goals simp only [ops, opAt, hi, ↓reduceIte]
+  all_goals
+    obtain ⟨p, hp⟩ := hver.pays_some hash compress K h inj cap o d hv.1 hv.2.2.2.1 hv.2.2.2.2
+    simp only [hp, Option.toList_some, List.map_cons, List.map_nil, Option.getD_some]
+
+/-- A partial climb advances by one sibling and the injection at the resulting depth. -/
+theorem Opening.digest_succ (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h l : ℕ)
+    (o : Opening Payload Digest) (hlen : o.path.length = K - h) (hl : l < K - h) :
+    o.digest hash compress K h (l + 1) =
+      inject hash compress (o.pays (K - h - (l + 1)))
+        (pairUp compress (o.index >>> l) (o.digest hash compress K h l)
+          (o.path.getD l (hash p₀))) := by
+  have hlt : l < o.path.length := by omega
+  unfold digest
+  rw [List.take_succ_eq_append_getElem hlt, climb_append]
+  simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt hlt),
+    List.length_singleton, climb_cons, climb_nil, List.length_nil, Nat.zero_add]
+  rw [List.getElem_eq_getD (hash p₀)]
+  congr 2
+  apply climb_congr
+  intro d _
+  congr 1
+  omega
+
+/-- A node's canonical operation answers the digest of the opening at its global depth. -/
+theorem Opening.answer_nodePosition (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hver : o.Verifies hash compress K h inj cap) (d i : ℕ)
+    (hd : h ≤ d) (hdK : d ≤ K) :
+    answer hash compress (o.opAt hash compress p₀ K h (nodePosition K inj d i)) =
+      o.digest hash compress K h (K - d) := by
+  by_cases he : d = K
+  · subst d
+    simp only [nodePosition, ↓reduceIte, opAt, answer, digest, Nat.sub_self,
+      List.take_zero, climb_nil]
+  · have hstep := o.digest_succ hash compress p₀ K h (K - d - 1) hver.2.2.2.1 (by omega)
+    have heq : K - d - 1 + 1 = K - d := by omega
+    rw [heq] at hstep
+    rw [hstep]
+    have hdepth : K - h - (K - d) = d - h := by omega
+    rw [hdepth]
+    have hpair : answer hash compress (.inr (o.childPair hash compress p₀ K h d)) =
+        pairUp compress (o.index >>> (K - d - 1))
+          (o.digest hash compress K h (K - d - 1))
+          (o.path.getD (K - d - 1) (hash p₀)) := by
+      simp only [childPair, pairUp, answer]
+      split <;> rfl
+    cases hi : inj d with
+    | false =>
+      have hs := hver.2.2.2.2.1 (d - h) (by omega)
+      rw [Nat.add_sub_of_le hd, hi] at hs
+      have hp : o.pays (d - h) = none :=
+        Option.isNone_iff_eq_none.mp (Option.isSome_eq_false_iff.mp hs)
+      simp only [nodePosition, he, ↓reduceIte, hi, Bool.false_eq_true, opAt, hp, inject]
+      exact hpair
+    | true =>
+      obtain ⟨p, hp⟩ := hver.pays_some hash compress K h inj cap o d hd (by omega) hi
+      simp only [nodePosition, he, ↓reduceIte, hi, opAt, hp, Option.getD_some, inject, answer]
+      exact congrArg (fun z ↦ compress z (hash p)) hpair
+
+/-- A parent of a path position lies on the same opening's path. -/
+theorem Opening.parent_path (K h : ℕ) (inj : ℕ → Bool) (o : Opening Payload Digest)
+    (v u : Position) (right : Bool) (hv : v.Valid K h inj)
+    (hi : o.index >>> (K - v.depth) = v.index)
+    (hp : v.parent h inj = some (u, right)) :
+    o.index >>> (K - u.depth) = u.index := by
+  rcases v with ⟨d, i, s⟩
+  obtain ⟨_, hdK, _, _⟩ := hv
+  change d ≤ K at hdK
+  cases s <;> simp only [Position.parent] at hp
+  all_goals
+    (try split_ifs at hp) <;> simp only [Option.some.injEq, Prod.mk.injEq] at hp
+  all_goals
+    obtain ⟨rfl, rfl⟩ := hp
+    first
+    | exact hi
+    | change o.index >>> (K - (d - 1)) = i / 2
+      rw [show K - (d - 1) = K - d + 1 by omega, Nat.shiftRight_succ, hi]
+
+/-- Selecting the path side of a parent's child compression gives the partial-climb digest. -/
+theorem Opening.childPair_select (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h d i : ℕ)
+    (o : Opening Payload Digest) (hd : 0 < d) (hdK : d ≤ K)
+    (hi : o.index >>> (K - d) = i) :
+    (if i % 2 != 0 then (o.childPair hash compress p₀ K h (d - 1)).2
+      else (o.childPair hash compress p₀ K h (d - 1)).1) =
+      o.digest hash compress K h (K - d) := by
+  unfold childPair
+  rw [show K - (d - 1) - 1 = K - d by omega]
+  dsimp only
+  rw [hi]
+  by_cases he : i % 2 = 0 <;> simp [he]
+
+/-- The canonical operation of a path position answers the corresponding input of its parent. -/
+theorem Opening.parent_edge (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hver : o.Verifies hash compress K h inj cap) (v u : Position) (right : Bool)
+    (hv : v.Valid K h inj) (hi : o.index >>> (K - v.depth) = v.index)
+    (hp : v.parent h inj = some (u, right)) :
+    answer hash compress (o.opAt hash compress p₀ K h v) =
+      (if right then (opChildren (hash p₀) (o.opAt hash compress p₀ K h u)).2
+        else (opChildren (hash p₀) (o.opAt hash compress p₀ K h u)).1) := by
+  have hnode : ∀ d i, h ≤ d → d ≤ K →
+      answer hash compress (o.opAt hash compress p₀ K h (nodePosition K inj d i)) =
+        o.digest hash compress K h (K - d) :=
+    fun d i hd hdK ↦ o.answer_nodePosition hash compress p₀ K h inj cap hver d i hd hdK
+  rcases v with ⟨d, i, s⟩
+  change h ≤ d ∧ d ≤ K ∧ i < 2 ^ d ∧ _ at hv
+  obtain ⟨hhd, hdK, _, hs⟩ := hv
+  cases s <;> simp only [Position.parent] at hp
+  all_goals (try dsimp only at hs hi)
+  all_goals
+    (try split_ifs at hp) <;> simp only [Option.some.injEq, Prod.mk.injEq] at hp
+  all_goals
+    obtain ⟨rfl, rfl⟩ := hp
+    first
+    | rfl
+    | have hn : Position.mk d i .leaf = nodePosition K inj d i := by
+        simp only [nodePosition, hs, ↓reduceIte]
+      rw [hn, hnode d i hhd hdK]
+      exact (o.childPair_select hash compress p₀ K h d i (by omega) hdK hi).symm
+    | have hn : Position.mk d i .children = nodePosition K inj d i := by
+        simp only [nodePosition, ite_eq_right (show d ≠ K by omega), ite_eq_right ‹¬inj d = true›]
+      rw [hn, hnode d i hhd hdK]
+      exact (o.childPair_select hash compress p₀ K h d i (by omega) hdK hi).symm
+    | have hn : Position.mk d i .injection = nodePosition K inj d i := by
+        simp only [nodePosition, ite_eq_right (show d ≠ K by omega), ite_eq_left hs.2]
+      rw [hn, hnode d i hhd hdK]
+      exact (o.childPair_select hash compress p₀ K h d i (by omega) hdK hi).symm
+
+/-- A position without a parent is a final node operation at cap depth. -/
+theorem Position.eq_nodePosition_of_parent_none (K h : ℕ) (inj : ℕ → Bool)
+    (v : Position) (hv : v.Valid K h inj) (hp : v.parent h inj = none) :
+    v.depth = h ∧ v = nodePosition K inj h v.index := by
+  rcases v with ⟨d, i, s⟩
+  change h ≤ d ∧ d ≤ K ∧ i < 2 ^ d ∧ _ at hv
+  obtain ⟨hhd, hdK, _, hs⟩ := hv
+  cases s <;> simp only [Position.parent] at hp
+  all_goals dsimp only at hs
+  all_goals (try split_ifs at hp); cases hp
+  all_goals
+    have he : d = h := by omega
+    refine ⟨he, ?_⟩
+    rw [← he]
+    first
+    | have hs' : d = K := hs
+      simp only [nodePosition, hs', ↓reduceIte]
+    | have hs' : d < K := hs
+      simp only [nodePosition, ite_eq_right (Nat.ne_of_lt hs'), ite_eq_right ‹¬inj d = true›]
+    | have hs' : d < K ∧ inj d = true := hs
+      simp only [nodePosition, ite_eq_right (Nat.ne_of_lt hs'.1), ite_eq_left hs'.2]
+
+/-- The operation at a cap position answers its indexed cap digest. -/
+theorem Opening.cap_answer (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest)
+    (hver : o.Verifies hash compress K h inj cap) (v : Position)
+    (hv : v.Valid K h inj) (hi : o.index >>> (K - v.depth) = v.index)
+    (hp : v.parent h inj = none) :
+    answer hash compress (o.opAt hash compress p₀ K h v) = cap.getD v.index (hash p₀) := by
+  obtain ⟨hd, he⟩ := v.eq_nodePosition_of_parent_none K h inj hv hp
+  have hval := o.answer_nodePosition hash compress p₀ K h inj cap hver h v.index
+    (Nat.le_refl _) hver.1
+  rw [← he] at hval
+  rw [hd] at hi
+  rw [hval]
+  rw [List.getD_eq_getElem?_getD, ← hi, hver.2.2.2.2.2, Option.getD_some]
+  simp only [digest, Nat.sub_self, Nat.add_zero, ← hver.2.2.2.1, List.take_length]
+
 section Statements
 
 variable (hash : Payload → Digest) (compress : Digest → Digest → Digest) (p₀ : Payload)
@@ -279,24 +501,79 @@ variable (hash : Payload → Digest) (compress : Digest → Digest → Digest) (
 
 /-- Finite position enumeration agrees with the structural validity predicate. -/
 theorem mem_positions (v : Position) : v ∈ positions K h inj ↔ v.Valid K h inj := by
-  sorry
+  classical
+  rw [positions, Finset.mem_filter]
+  refine ⟨And.right, fun hv ↦ ⟨?_, hv⟩⟩
+  rcases v with ⟨d, i, s⟩
+  change h ≤ d ∧ d ≤ K ∧ i < 2 ^ d ∧ _ at hv
+  obtain ⟨_, hd, hi, _⟩ := hv
+  simp only [Finset.mem_biUnion, Finset.mem_range, Finset.mem_image]
+  refine ⟨d, by omega, i, hi, s, ?_, rfl⟩
+  cases s <;> simp only [Finset.mem_insert, Finset.mem_singleton, true_or, or_true]
 
 /-- A non-cap position's parent is another enumerated position. -/
 theorem parent_mem_positions (v u : Position) (right : Bool) (hv : v ∈ positions K h inj)
     (hp : v.parent h inj = some (u, right)) : u ∈ positions K h inj := by
-  sorry
+  rw [mem_positions] at hv ⊢
+  rcases v with ⟨d, i, s⟩
+  change h ≤ d ∧ d ≤ K ∧ i < 2 ^ d ∧ _ at hv
+  obtain ⟨hhd, hdK, hi, hs⟩ := hv
+  cases s <;> simp only [Position.parent] at hp
+  all_goals (try dsimp only at hs hi)
+  all_goals
+    (try split_ifs at hp) <;>
+      simp only [Option.some.injEq, Prod.mk.injEq] at hp
+  all_goals
+    obtain ⟨rfl, rfl⟩ := hp
+    simp only [Position.Valid]
+    first
+    | exact ⟨hhd, hdK, hi, hs.1, hs.2⟩
+    | exact ⟨hhd, hdK, hi, hs, ‹inj d = true›⟩
+    | have hd : d - 1 + 1 = d := by omega
+      have hi' : i / 2 < 2 ^ (d - 1) := by
+        apply (Nat.div_lt_iff_lt_mul (by omega : 0 < 2)).2
+        rw [← Nat.pow_succ]
+        change i < 2 ^ (d - 1 + 1)
+        rw [hd]
+        exact hi
+      exact ⟨by omega, by omega, hi', by omega⟩
 
 /-- The ancestor extractors and the position's own extractor fit the structural path budget. -/
 theorem ancestors_length_le (v : Position) (hv : v ∈ positions K h inj) :
     (v.ancestors h inj).length + 1 ≤ 2 * (K - h) + 1 := by
-  sorry
+  have hlength : ∀ v ∈ positions K h inj,
+      (v.ancestors h inj).length + 2 * h ≤ v.rank := by
+    intro v
+    induction v using (measure Position.rank).wf.induction with
+    | h v ih =>
+      intro hv
+      have hdepth := ((mem_positions K h inj v).1 hv).1
+      rw [Position.ancestors]
+      split
+      · rcases v with ⟨d, i, s⟩
+        change h ≤ d at hdepth
+        cases s <;> simp only [List.length_nil, Position.rank] <;> omega
+      · rename_i u right hp
+        have hu := parent_mem_positions K h inj v u right hv hp
+        have hr := Position.parent_rank_lt h inj v u right hp
+        have hi := ih u hr hu
+        simp only [List.length_cons]
+        omega
+  have hl := hlength v hv
+  have hv' := (mem_positions K h inj v).1 hv
+  rcases v with ⟨d, i, s⟩
+  change h ≤ d ∧ d ≤ K ∧ i < 2 ^ d ∧ _ at hv'
+  cases s <;> simp only [Position.rank] at hl <;> simp only at hv' <;> omega
 
 /-- Two distinct valid revealed preimages force failure of every same-coins extractor. -/
 theorem nodeBad_of_collision (f : Op Payload Digest → Digest)
     (B : NodeAdversary Coins Payload Digest) (E : Coins → Op Payload Digest) (c : Coins)
     (q q' : Op Payload Digest) (hq : q ∈ (B c).2) (hq' : q' ∈ (B c).2)
     (hy : f q = (B c).1) (hy' : f q' = (B c).1) (hne : q ≠ q') : NodeBad f B E c := by
-  sorry
+  classical
+  by_cases he : q = E c
+  · exact ⟨q', hq', hy', fun he' ↦ hne (he.trans he'.symm)⟩
+  · exact ⟨q, hq, hy, he⟩
 
 /-- Honest openings satisfy the cap verifier with the honest global injection schedule. -/
 theorem honest_verifies (leaves : ℕ → Payload) (injections : ℕ → Option (ℕ → Payload))
@@ -305,14 +582,31 @@ theorem honest_verifies (leaves : ℕ → Payload) (injections : ℕ → Option 
       (cap hash compress K leaves injections h)
       ⟨i, leaves i, pays K injections i (K - h),
         siblings hash compress K leaves injections i (K - h)⟩ := by
-  sorry
+  refine ⟨hh, ?_, hi, ?_, ?_, ?_⟩
+  · simp only [cap, List.length_map, List.length_range]
+  · simp only [siblings, List.length_map, List.length_range]
+  · intro d hd
+    simp only [pays, Option.isSome_map]
+    congr 2
+    omega
+  · have hidx : i >>> (K - h) < 2 ^ h := by
+      rw [Nat.shiftRight_eq_div_pow,
+        Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← Nat.pow_add,
+        Nat.add_sub_cancel' hh]
+      exact hi
+    have hc := climb_cap hash compress K leaves injections h i hh hi
+    rw [hc]
+    simp only [cap, List.getElem?_map, List.getElem?_range hidx, Option.map_some,
+      List.getD_eq_getElem?_getD, Option.getD_some]
 
 /-- Every operation of a verifying opening is revealed by its derived node adversary. -/
 theorem opening_op_mem (c : Coins) (o : Opening Payload Digest) (ho : o ∈ (A c).2)
     (hv : o.Verifies hash compress K h inj (A c).1) (v : Position) (q : Op Payload Digest)
     (hq : q ∈ o.ops hash compress p₀ K h v) :
     q ∈ (derivedAdversary hash compress p₀ K h inj A X v c).2 := by
-  sorry
+  rw [derivedAdversary]
+  simp only [revealedOps, List.mem_flatMap, List.mem_filter, decide_eq_true_eq]
+  exact ⟨o, ⟨ho, hv⟩, hq⟩
 
 /-- Absent node failures, a verifying opening's operation equals the predicted operation here,
 and its output equals the derived target; this is the top-down induction invariant. -/
@@ -326,7 +620,104 @@ theorem opening_op_eq_extracted (c : Coins)
     (hq : q ∈ o.ops hash compress p₀ K h v) :
     q = extractedOp hash compress p₀ K h inj A X v c ∧
       answer hash compress q = (derivedAdversary hash compress p₀ K h inj A X v c).1 := by
-  sorry
+  classical
+  induction v using (measure Position.rank).wf.induction generalizing q with
+  | h v ih =>
+    have hvalid := (mem_positions K h inj v).1 hv
+    have hi : o.index >>> (K - v.depth) = v.index := by
+      by_contra hn
+      simp only [Opening.ops, hn, ↓reduceIte, List.not_mem_nil] at hq
+    rw [o.ops_eq_singleton hash compress p₀ K h inj (A c).1 hver v hvalid hi,
+      List.mem_singleton] at hq
+    subst q
+    have htarget : answer hash compress (o.opAt hash compress p₀ K h v) =
+        (derivedAdversary hash compress p₀ K h inj A X v c).1 := by
+      rw [derivedAdversary]
+      dsimp only
+      cases hp : v.parent h inj with
+      | none =>
+        exact o.cap_answer hash compress p₀ K h inj (A c).1 hver v hvalid hi hp
+      | some ur =>
+        obtain ⟨u, right⟩ := ur
+        dsimp only
+        have hu := parent_mem_positions K h inj v u right hv hp
+        have huvalid := (mem_positions K h inj u).1 hu
+        have hui := o.parent_path K h inj v u right hvalid hi hp
+        have hqu : o.opAt hash compress p₀ K h u ∈ o.ops hash compress p₀ K h u := by
+          rw [o.ops_eq_singleton hash compress p₀ K h inj (A c).1 hver u huvalid hui]
+          exact List.mem_singleton_self _
+        have hpred := (ih u (v.parent_rank_lt h inj u right hp) hu _ hqu).1
+        change o.opAt hash compress p₀ K h u =
+          X (derivedAdversary hash compress p₀ K h inj A X u) c at hpred
+        rw [← hpred]
+        exact o.parent_edge hash compress p₀ K h inj (A c).1 hver v u right hvalid hi hp
+    refine ⟨?_, htarget⟩
+    by_contra hne
+    apply hgood v hv
+    exact ⟨o.opAt hash compress p₀ K h v,
+      opening_op_mem hash compress p₀ K h inj A X c o ho hver v _
+        (by rw [o.ops_eq_singleton hash compress p₀ K h inj (A c).1 hver v hvalid hi]
+            exact List.mem_singleton_self _), htarget, hne⟩
+
+/-- Without node failures, a verifying opening's leaf is the extracted leaf. -/
+theorem opening_leaf_eq (c : Coins)
+    (hgood : ∀ v ∈ positions K h inj,
+      ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
+        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+    (o : Opening Payload Digest) (ho : o ∈ (A c).2)
+    (hv : o.Verifies hash compress K h inj (A c).1) :
+    o.payload = extractedLeaves hash compress p₀ K h inj A X c o.index := by
+  have hpos : (Position.mk K o.index .leaf).Valid K h inj :=
+    ⟨hv.1, Nat.le_refl _, hv.2.2.1, rfl⟩
+  have he := (opening_op_eq_extracted hash compress p₀ K h inj A X c hgood o ho hv
+    ⟨K, o.index, .leaf⟩ ((mem_positions K h inj _).2 hpos) (.inl o.payload)
+    (by simp only [Opening.ops, Nat.sub_self, Nat.shiftRight_zero, ↓reduceIte,
+          List.mem_singleton])).1
+  exact congrArg (opPayload p₀) he
+
+/-- Without node failures, a verifying opening's injections are the extracted injections. -/
+theorem opening_pays_eq (c : Coins)
+    (hgood : ∀ v ∈ positions K h inj,
+      ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
+        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+    (o : Opening Payload Digest) (ho : o ∈ (A c).2)
+    (hv : o.Verifies hash compress K h inj (A c).1) (d : ℕ) (hd : d < K - h) :
+    o.pays d = pays K (extractedInjections hash compress p₀ K h inj A X c)
+      o.index (K - h) d := by
+  have hdepth : K - (K - h - d) = h + d := by omega
+  have hidx : K - h - d = K - (h + d) := by omega
+  have hlt : h + d < K := by omega
+  have hs := hv.2.2.2.2.1 d hd
+  unfold pays
+  rw [hdepth, hidx]
+  cases hp : o.pays d with
+  | none =>
+    have hinj : inj (h + d) = false := by
+      rw [hp, Option.isSome_none] at hs
+      exact hs.symm
+    simp only [extractedInjections, hinj, Bool.false_eq_true, and_false, ↓reduceIte,
+      Option.map_none]
+  | some p =>
+    have hinj : inj (h + d) = true := by
+      rw [hp, Option.isSome_some] at hs
+      exact hs.symm
+    let v : Position := ⟨h + d, o.index >>> (K - (h + d)), .payload⟩
+    have hpos : v.Valid K h inj := by
+      change h ≤ h + d ∧ h + d ≤ K ∧
+        o.index >>> (K - (h + d)) < 2 ^ (h + d) ∧ h + d < K ∧ inj (h + d) = true
+      exact ⟨Nat.le_add_right _ _, Nat.le_of_lt hlt,
+        hv.index_lt hash compress K h inj (A c).1 o (h + d) (Nat.le_of_lt hlt), hlt, hinj⟩
+    have hops := o.ops_eq_singleton hash compress p₀ K h inj (A c).1 hv v hpos rfl
+    have hmem : .inl p ∈ o.ops hash compress p₀ K h v := by
+      rw [hops]
+      simp only [Opening.opAt, v, Nat.add_sub_cancel_left, hp, Option.getD_some,
+        List.mem_singleton]
+    have he := (opening_op_eq_extracted hash compress p₀ K h inj A X c hgood o ho hv v
+      ((mem_positions K h inj v).2 hpos) (.inl p) hmem).1
+    have hpay := congrArg (opPayload p₀) he
+    simp only [extractedInjections, show h ≤ h + d from Nat.le_add_right _ _, hlt, hinj,
+      and_self, ↓reduceIte, Option.map_some]
+    exact congrArg some hpay
 
 /-- Every verifying opening that disagrees with extraction witnesses a failure at a position. -/
 theorem disagreement_implies_nodeBad (c : Coins) (o : Opening Payload Digest)
@@ -336,17 +727,32 @@ theorem disagreement_implies_nodeBad (c : Coins) (o : Opening Payload Digest)
     ∃ v ∈ positions K h inj,
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
         (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
-  sorry
+  classical
+  by_contra hn
+  have hgood : ∀ v ∈ positions K h inj,
+      ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
+        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+    intro v hv hbad
+    exact hn ⟨v, hv, hbad⟩
+  rcases hd with hleaf | ⟨d, hd, hpays⟩
+  · exact hleaf (opening_leaf_eq hash compress p₀ K h inj A X c hgood o ho hv)
+  · exact hpays (opening_pays_eq hash compress p₀ K h inj A X c hgood o ho hv d hd)
 
 /-- Standard-model knowledge reduction for a mixed Merkle cap, for every extractor assignment. -/
-theorem knowledge_bound [SampleableType Coins] (hh : h ≤ K) :
+theorem knowledge_bound [SampleableType Coins] :
     Pr{let c ← $ᵗ Coins}[∃ o ∈ (A c).2, o.Verifies hash compress K h inj (A c).1 ∧
       o.Disagrees K h (extractedLeaves hash compress p₀ K h inj A X c)
         (extractedInjections hash compress p₀ K h inj A X c)] ≤
     ∑ v ∈ positions K h inj,
       nodeFail (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
         (X (derivedAdversary hash compress p₀ K h inj A X v)) := by
-  sorry
+  refine (prEvent_mono ($ᵗ Coins) _
+    (fun c ↦ ∃ v ∈ positions K h inj,
+      NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
+        (X (derivedAdversary hash compress p₀ K h inj A X v)) c) ?_).trans ?_
+  · intro c ⟨o, ho, hv, hd⟩
+    exact disagreement_implies_nodeBad hash compress p₀ K h inj A X c o ho hv hd
+  · exact prEvent_exists_finset_le (positions K h inj) ($ᵗ Coins) _
 
 end Statements
 
