@@ -16,6 +16,9 @@ Fixed leaf hashes and compressions are one primitive on `Op`. A node extractor r
 same explicit coins as its node adversary. `knowledge_bound` reduces disagreement with the
 named, top-down extraction to failures of the extractors assigned to the derived node adversaries.
 The injection schedule uses global depths; an opening's payloads use depths below its cap.
+Opening verification needs only digest equality and a bounded check of injection depths.
+Extraction is computable whenever the supplied hash, compression, adversary and extractor
+assignment are computable. Probability definitions and position enumeration serve the analysis.
 -/
 
 public section
@@ -86,6 +89,18 @@ def Opening.Verifies (hash : Payload → Digest) (compress : Digest → Digest �
     (∀ d < K - h, (o.pays d).isSome = inj (h + d)) ∧
     cap[o.index >>> (K - h)]? =
       some (climb hash compress o.pays o.index (hash o.payload) o.path)
+
+/-- Opening verification decides digest equality and checks the finite interval of injection depths.
+No equality test on payloads is needed. -/
+instance Opening.instDecidableVerifies [DecidableEq Digest] (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (o : Opening Payload Digest) :
+    Decidable (o.Verifies hash compress K h inj cap) := by
+  unfold Opening.Verifies
+  have : Decidable (∀ d < K - h, (o.pays d).isSome = inj (h + d)) :=
+    decidable_of_iff (∀ d : Fin (K - h), (o.pays d).isSome = inj (h + d))
+      (by simp only [Fin.forall_iff])
+  infer_instance
 
 /-- A Merkle adversary outputs a cap and a list of openings on explicit coins. -/
 abbrev MerkleAdversary (Coins : Type) (Payload : Type u) (Digest : Type v) :=
@@ -222,18 +237,17 @@ def Opening.ops (hash : Payload → Digest) (compress : Digest → Digest → Di
 
 /-- All operations computed at a position by the adversary's verifying openings. -/
 @[expose]
-noncomputable def revealedOps (hash : Payload → Digest) (compress : Digest → Digest → Digest)
+def revealedOps [DecidableEq Digest] (hash : Payload → Digest) (compress : Digest → Digest → Digest)
     (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool) (A : MerkleAdversary Coins Payload Digest)
-    (v : Position) (c : Coins) : List (Op Payload Digest) := by
-  classical
-  exact ((A c).2.filter (fun o ↦ decide (o.Verifies hash compress K h inj (A c).1))).flatMap
+    (v : Position) (c : Coins) : List (Op Payload Digest) :=
+  ((A c).2.filter (fun o ↦ decide (o.Verifies hash compress K h inj (A c).1))).flatMap
     (Opening.ops hash compress p₀ K h v)
 
 /-- The node adversary targets a cap digest or a child of its parent's extracted operation and
 reveals all verifying-opening operations here. It runs `A` and the extractors of this position's
 ancestors, at most `2 * (K - h) + 1` extractors along a path, with the same coins throughout. -/
 @[expose]
-noncomputable def derivedAdversary (hash : Payload → Digest)
+def derivedAdversary [DecidableEq Digest] (hash : Payload → Digest)
     (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
     (A : MerkleAdversary Coins Payload Digest) (X : ExtractorMap Coins Payload Digest)
     (v : Position) : NodeAdversary Coins Payload Digest :=
@@ -249,14 +263,14 @@ decreasing_by exact Position.parent_rank_lt h inj _ _ _ _hp
 
 /-- The assigned extractor's operation at a position. -/
 @[expose]
-noncomputable def extractedOp (hash : Payload → Digest) (compress : Digest → Digest → Digest)
+def extractedOp [DecidableEq Digest] (hash : Payload → Digest) (compress : Digest → Digest → Digest)
     (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool) (A : MerkleAdversary Coins Payload Digest)
     (X : ExtractorMap Coins Payload Digest) (v : Position) (c : Coins) : Op Payload Digest :=
   X (derivedAdversary hash compress p₀ K h inj A X v) c
 
 /-- Extracted leaf payloads, with the fixed default for predictions of the wrong shape. -/
 @[expose]
-noncomputable def extractedLeaves (hash : Payload → Digest)
+def extractedLeaves [DecidableEq Digest] (hash : Payload → Digest)
     (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
     (A : MerkleAdversary Coins Payload Digest) (X : ExtractorMap Coins Payload Digest)
     (c : Coins) (i : ℕ) : Payload :=
@@ -264,7 +278,7 @@ noncomputable def extractedLeaves (hash : Payload → Digest)
 
 /-- Extracted injected payloads at the scheduled inner depths from the cap downwards. -/
 @[expose]
-noncomputable def extractedInjections (hash : Payload → Digest)
+def extractedInjections [DecidableEq Digest] (hash : Payload → Digest)
     (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
     (A : MerkleAdversary Coins Payload Digest) (X : ExtractorMap Coins Payload Digest)
     (c : Coins) (d : ℕ) : Option (ℕ → Payload) :=
@@ -598,6 +612,8 @@ theorem honest_verifies (leaves : ℕ → Payload) (injections : ℕ → Option 
     rw [hc]
     simp only [cap, List.getElem?_map, List.getElem?_range hidx, Option.map_some,
       List.getD_eq_getElem?_getD, Option.getD_some]
+
+variable [DecidableEq Digest]
 
 /-- Every operation of a verifying opening is revealed by its derived node adversary. -/
 theorem opening_op_mem (c : Coins) (o : Opening Payload Digest) (ho : o ∈ (A c).2)
