@@ -754,7 +754,19 @@ theorem disagreement_implies_nodeBad (c : Coins) (o : Opening Payload Digest)
   · exact hleaf (opening_leaf_eq hash compress p₀ K h inj A X c hgood o ho hv)
   · exact hpays (opening_pays_eq hash compress p₀ K h inj A X c hgood o ho hv d hd)
 
-/-- Standard-model knowledge reduction for a mixed Merkle cap, for every extractor assignment. -/
+/-- One same-coins Merkle game runs the adversary once and adds the node extraction cost. -/
+theorem knowledge_bound_union [SampleableType Coins] :
+    Pr{let c ← $ᵗ Coins}[∃ o ∈ (A c).2, o.Verifies hash compress K h inj (A c).1 ∧
+      o.Disagrees K h (extractedLeaves hash compress p₀ K h inj A X c)
+        (extractedInjections hash compress p₀ K h inj A X c)] ≤
+    Pr{let c ← $ᵗ Coins}[∃ v ∈ positions K h inj,
+      NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
+        (X (derivedAdversary hash compress p₀ K h inj A X v)) c] := by
+  apply prEvent_mono
+  intro c ⟨o, ho, hv, hd⟩
+  exact disagreement_implies_nodeBad hash compress p₀ K h inj A X c o ho hv hd
+
+/-- The sum over positions is the finite union bound on the single Merkle game. -/
 theorem knowledge_bound [SampleableType Coins] :
     Pr{let c ← $ᵗ Coins}[∃ o ∈ (A c).2, o.Verifies hash compress K h inj (A c).1 ∧
       o.Disagrees K h (extractedLeaves hash compress p₀ K h inj A X c)
@@ -762,13 +774,8 @@ theorem knowledge_bound [SampleableType Coins] :
     ∑ v ∈ positions K h inj,
       nodeFail (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
         (X (derivedAdversary hash compress p₀ K h inj A X v)) := by
-  refine (prEvent_mono ($ᵗ Coins) _
-    (fun c ↦ ∃ v ∈ positions K h inj,
-      NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c) ?_).trans ?_
-  · intro c ⟨o, ho, hv, hd⟩
-    exact disagreement_implies_nodeBad hash compress p₀ K h inj A X c o ho hv hd
-  · exact prEvent_exists_finset_le (positions K h inj) ($ᵗ Coins) _
+  exact (knowledge_bound_union hash compress p₀ K h inj A X).trans
+    (prEvent_exists_finset_le (positions K h inj) ($ᵗ Coins) _)
 
 end Statements
 
