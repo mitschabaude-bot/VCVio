@@ -125,3 +125,7 @@ its pure helper decomposition and tests; Cryptol source imports, semantic models
 certificates stay in #840. The upgrade PR owns the dependency bump and required upstream API
 port; the larger notation and tactic redesign stays in #821. Validate each PR against its own
 base and pins, and compare the reconstructed combined tree against these preserved inputs.
+
+## Partial mixed-Merkle extraction
+
+`VCVio/CryptoFoundations/MerkleTree/Mixed/Masked.lean` defines `extractedMask` for leaves and `extractedInjectionMask` for injected payloads. A known payload has a shape-correct, hash-consistent predicted operation at every position on its path from the cap, including injected payload hashes. `opening_none_implies_nodeBad` and `opening_injection_none_implies_nodeBad` keep the failure on the same path and coins. `masked_knowledge_bound` uses the existing sum of derived node failures. `extractedAuthentication` builds a finite partial-word witness with reconstructed openings, and `MaskAuthentication.check` verifies all known columns against the cap without consulting an extractor.

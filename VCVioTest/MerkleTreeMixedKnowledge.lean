@@ -6,8 +6,8 @@ Authors: Gregor Mitscha-Baude
 
 module
 
-public import VCVio.CryptoFoundations.MerkleTree.Mixed.Knowledge
-public meta import VCVio.CryptoFoundations.MerkleTree.Mixed.Knowledge
+public import VCVio.CryptoFoundations.MerkleTree.Mixed.Masked
+public meta import VCVio.CryptoFoundations.MerkleTree.Mixed.Masked
 
 /-!
 # Executable mixed Merkle knowledge extraction
@@ -145,11 +145,27 @@ def checksLeafCap : Bool :=
     extractedLeaves hash compress 0 0 0 (fun _ ↦ false) A X false 0 == 42 &&
     verifiesFunctionPayload ⟨0, (fun n ↦ n + 1), fun _ ↦ none, []⟩
 
+/-- Honest path extraction is full and its generated authentication verifies at every cap. -/
+def checksMasks (h : ℕ) (c : Bool) : Bool :=
+  let w := extractedAuthentication hash compress 0 3 h schedule (adversary h) extractor c
+  (List.ofFn w.word).all Option.isSome &&
+    w.check hash compress 3 h schedule (adversary h c).1 &&
+    decide (w.word ⟨5, by decide⟩ = some (leaves c 5))
+
+/-- A wrong injected payload prediction hides the entire path even with correct tree children. -/
+def checksInjectedMask (c : Bool) : Bool :=
+  let broken : ExtractorMap Bool ℕ (List ℕ) := fun B coins =>
+    if (B coins).1 = hash ((injections coins 0).getD (fun _ => 0) 0) then .inl 999
+    else extractor B coins
+  let w := extractedAuthentication hash compress 0 3 0 schedule (adversary 0) broken c
+  (List.ofFn w.word).all Option.isNone &&
+    w.check hash compress 3 0 schedule (adversary 0 c).1
+
 /-- Deterministic executable regression for full mixed-tree extraction. -/
 def checks : Bool :=
   [false, true].all (fun c ↦ [0, 1].all fun h ↦
-    recoversTree h c && checksOpenings h c && checksRevealed h c) &&
-    checksDefaults && checksLeafCap
+    recoversTree h c && checksOpenings h c && checksRevealed h c && checksMasks h c) &&
+    checksDefaults && checksLeafCap && [false, true].all checksInjectedMask
 
 #eval do
   unless checks do throw (IO.userError "mixed Merkle knowledge extraction failed")
