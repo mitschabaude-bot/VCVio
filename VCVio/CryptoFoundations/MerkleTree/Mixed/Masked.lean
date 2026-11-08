@@ -422,4 +422,118 @@ theorem extractedInjectionAuthentication_check [DecidableEq Payload]
     · simp [shape, known]
   · simp [shape]
 
+/-- Checked paths bind their target unless unequal operations have the same answer. -/
+theorem checkPositionPath_binding (hash : Payload → Digest)
+    (compress : Digest → Digest → Digest) (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool)
+    (cap : List Digest) (left right : Position → Op Payload Digest) (v : Position)
+    (hl : checkPositionPath hash compress p₀ K h inj cap left v = true)
+    (hr : checkPositionPath hash compress p₀ K h inj cap right v = true)
+    (different : left v ≠ right v) :
+    ∃ u ∈ extractionPathPositions h inj v,
+      left u ≠ right u ∧ answer hash compress (left u) = answer hash compress (right u) := by
+  classical
+  have links (ops : Position → Op Payload Digest)
+      (checked : checkPositionPath hash compress p₀ K h inj cap ops v = true) :
+      ∀ u ∈ extractionPathPositions h inj v,
+        answer hash compress (ops u) =
+          match u.parent h inj with
+          | none => cap.getD u.index (hash p₀)
+          | some (parent, side) =>
+              let pair := opChildren (hash p₀) (ops parent)
+              if side then pair.2 else pair.1 := by
+    simp only [checkPositionPath, Bool.and_eq_true_iff, List.all_eq_true] at checked
+    intro u hu
+    exact of_decide_eq_true (checked.2 u hu).2
+  by_contra absent
+  have equal : ∀ u ∈ extractionPathPositions h inj v, left u = right u := by
+    intro u
+    induction u using (measure Position.rank).wf.induction with
+    | h u ih =>
+      intro hu
+      have answers : answer hash compress (left u) = answer hash compress (right u) := by
+        rw [links left hl u hu, links right hr u hu]
+        cases hp : u.parent h inj with
+        | none => rfl
+        | some pair =>
+            obtain ⟨parent, side⟩ := pair
+            dsimp only
+            rw [ih parent (u.parent_rank_lt h inj parent side hp)
+              (extractionPath_parent_mem h inj v u parent hu side hp)]
+      by_contra unequal
+      exact absent ⟨u, hu, unequal, answers⟩
+  exact different (equal v (List.mem_append_left _ (List.mem_cons_self)))
+
+/-- A revealed leaf in a checked mask has a checked cap path and the stated payload. -/
+theorem MaskAuthentication.check_known [DecidableEq Payload]
+    (hash : Payload → Digest) (compress : Digest → Digest → Digest) (p₀ : Payload)
+    (K h : ℕ) (inj : ℕ → Bool) (cap : List Digest)
+    (w : MaskAuthentication Payload Digest K)
+    (checked : w.check hash compress p₀ K h inj cap = true)
+    (i : Fin (2 ^ K)) (p : Payload) (known : w.word i = some p) :
+    checkPositionPath hash compress p₀ K h inj cap w.operations ⟨K, i, .leaf⟩ = true ∧
+      opPayload p₀ (w.operations ⟨K, i, .leaf⟩) = p := by
+  simp only [MaskAuthentication.check, List.all_eq_true, List.forall_mem_ofFn_iff] at checked
+  simpa only [known, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] using checked i
+
+/-- A revealed injected payload in a checked mask has a checked cap path and its stated value. -/
+theorem InjectionMaskAuthentication.check_known [DecidableEq Payload]
+    (hash : Payload → Digest) (compress : Digest → Digest → Digest) (p₀ : Payload)
+    (K h d : ℕ) (inj : ℕ → Bool) (cap : List Digest)
+    (w : InjectionMaskAuthentication Payload Digest d)
+    (checked : w.check hash compress p₀ K h d inj cap = true)
+    (i : Fin (2 ^ d)) (p : Payload) (known : w.word i = some p) :
+    (h ≤ d ∧ d < K ∧ inj d = true) ∧
+      checkPositionPath hash compress p₀ K h inj cap w.operations ⟨d, i, .payload⟩ = true ∧
+        opPayload p₀ (w.operations ⟨d, i, .payload⟩) = p := by
+  simp only [InjectionMaskAuthentication.check, List.all_eq_true,
+    List.forall_mem_ofFn_iff] at checked
+  have result := checked i
+  simp only [known, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] at result
+  exact ⟨result.1.1, result.1.2, result.2⟩
+
+/-- Different authenticated leaves under one cap exhibit a hash-operation collision. -/
+theorem MaskAuthentication.binding [DecidableEq Payload]
+    (hash : Payload → Digest) (compress : Digest → Digest → Digest) (p₀ : Payload)
+    (K h : ℕ) (inj : ℕ → Bool) (cap : List Digest)
+    (left right : MaskAuthentication Payload Digest K)
+    (hl : left.check hash compress p₀ K h inj cap = true)
+    (hr : right.check hash compress p₀ K h inj cap = true)
+    (i : Fin (2 ^ K)) (a b : Payload) (ha : left.word i = some a)
+    (hb : right.word i = some b) (different : a ≠ b) :
+    ∃ u ∈ maskPositions K h inj i,
+      left.operations u ≠ right.operations u ∧
+        answer hash compress (left.operations u) = answer hash compress (right.operations u) := by
+  simp only [MaskAuthentication.check, List.all_eq_true, List.forall_mem_ofFn_iff] at hl hr
+  have la := hl i
+  have rb := hr i
+  simp only [ha, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] at la
+  simp only [hb, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] at rb
+  apply checkPositionPath_binding hash compress p₀ K h inj cap left.operations right.operations
+    ⟨K, i, .leaf⟩ la.1 rb.1
+  intro same
+  exact different (la.2.symm.trans ((congrArg (opPayload p₀) same).trans rb.2))
+
+/-- Different authenticated injected payloads exhibit a hash-operation collision. -/
+theorem InjectionMaskAuthentication.binding [DecidableEq Payload]
+    (hash : Payload → Digest) (compress : Digest → Digest → Digest) (p₀ : Payload)
+    (K h d : ℕ) (inj : ℕ → Bool) (cap : List Digest)
+    (left right : InjectionMaskAuthentication Payload Digest d)
+    (hl : left.check hash compress p₀ K h d inj cap = true)
+    (hr : right.check hash compress p₀ K h d inj cap = true)
+    (i : Fin (2 ^ d)) (a b : Payload) (ha : left.word i = some a)
+    (hb : right.word i = some b) (different : a ≠ b) :
+    ∃ u ∈ extractionPathPositions h inj ⟨d, i, .payload⟩,
+      left.operations u ≠ right.operations u ∧
+        answer hash compress (left.operations u) = answer hash compress (right.operations u) := by
+  simp only [InjectionMaskAuthentication.check, List.all_eq_true,
+    List.forall_mem_ofFn_iff] at hl hr
+  have la := hl i
+  have rb := hr i
+  simp only [ha, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] at la
+  simp only [hb, id_eq, Bool.and_eq_true_iff, decide_eq_true_eq] at rb
+  apply checkPositionPath_binding hash compress p₀ K h inj cap left.operations right.operations
+    ⟨d, i, .payload⟩ la.1.2 rb.1.2
+  intro same
+  exact different (la.2.symm.trans ((congrArg (opPayload p₀) same).trans rb.2))
+
 end MixedMerkleTree.Knowledge
