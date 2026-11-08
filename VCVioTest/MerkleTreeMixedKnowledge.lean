@@ -149,7 +149,7 @@ def checksLeafCap : Bool :=
 def checksMasks (h : ℕ) (c : Bool) : Bool :=
   let w := extractedAuthentication hash compress 0 3 h schedule (adversary h) extractor c
   (List.ofFn w.word).all Option.isSome &&
-    w.check hash compress 3 h schedule (adversary h c).1 &&
+    w.check hash compress 0 3 h schedule (adversary h c).1 &&
     decide (w.word ⟨5, by decide⟩ = some (leaves c 5))
 
 /-- A wrong injected payload prediction hides the entire path even with correct tree children. -/
@@ -159,13 +159,44 @@ def checksInjectedMask (c : Bool) : Bool :=
     else extractor B coins
   let w := extractedAuthentication hash compress 0 3 0 schedule (adversary 0) broken c
   (List.ofFn w.word).all Option.isNone &&
-    w.check hash compress 3 0 schedule (adversary 0 c).1
+    w.check hash compress 0 3 0 schedule (adversary 0 c).1
+
+/-- Injected payloads authenticate at each valid depth and reject a substituted known value. -/
+def checksInjectionAuthentication (h : ℕ) (c : Bool) : Bool :=
+  (List.range 4).all fun d =>
+    let w := extractedInjectionAuthentication hash compress 0 3 h d schedule
+      (adversary h) extractor c
+    w.check hash compress 0 3 h d schedule (adversary h c).1 &&
+      (if h ≤ d && d < 2 then
+        (List.ofFn w.word).all Option.isSome &&
+          !(InjectionMaskAuthentication.check hash compress 0 3 h d schedule (adversary h c).1
+            { w with word := fun _ => some 999 })
+      else (List.ofFn w.word).all Option.isNone)
+
+/-- Malformed caps yield empty leaf and injection masks whose authentication still verifies. -/
+def checksMalformedCapMasks (c : Bool) : Bool :=
+  [[], (adversary 0 c).1 ++ [[]]].all fun badCap =>
+    let A : MerkleAdversary Bool ℕ (List ℕ) := fun _ => (badCap, [])
+    let leaf := extractedAuthentication hash compress 0 3 0 schedule A extractor c
+    let injected := extractedInjectionAuthentication hash compress 0 3 0 0 schedule A extractor c
+    (List.ofFn leaf.word).all Option.isNone &&
+      leaf.check hash compress 0 3 0 schedule badCap &&
+      (List.ofFn injected.word).all Option.isNone &&
+      injected.check hash compress 0 3 0 0 schedule badCap
+
+/-- Substituting a known leaf payload fails authentication against its extracted operations. -/
+def checksTamperedLeaf (h : ℕ) (c : Bool) : Bool :=
+  let w := extractedAuthentication hash compress 0 3 h schedule (adversary h) extractor c
+  !(MaskAuthentication.check hash compress 0 3 h schedule (adversary h c).1
+    { w with word := fun _ => some 999 })
 
 /-- Deterministic executable regression for full mixed-tree extraction. -/
 def checks : Bool :=
   [false, true].all (fun c ↦ [0, 1].all fun h ↦
-    recoversTree h c && checksOpenings h c && checksRevealed h c && checksMasks h c) &&
-    checksDefaults && checksLeafCap && [false, true].all checksInjectedMask
+    recoversTree h c && checksOpenings h c && checksRevealed h c && checksMasks h c &&
+      checksInjectionAuthentication h c && checksTamperedLeaf h c) &&
+    checksDefaults && checksLeafCap && [false, true].all (fun c =>
+      checksInjectedMask c && checksMalformedCapMasks c)
 
 #eval do
   unless checks do throw (IO.userError "mixed Merkle knowledge extraction failed")
