@@ -12,9 +12,10 @@ public import VCVio.OracleComp.Constructions.SampleableType.Measure
 /-!
 # Knowledge extraction for mixed Merkle caps
 
-Fixed leaf hashes and compressions are one primitive on `Op`. A node extractor receives the
-same explicit coins as its node adversary. `knowledge_bound` reduces disagreement with the
-named, top-down extraction to failures of the extractors assigned to the derived node adversaries.
+Fixed leaf hashes and compressions are one primitive on `Op`. A node extractor receives its
+operation position and the same explicit coins as its node adversary. `knowledge_bound` reduces
+disagreement with the named, top-down extraction to failures of the extractors assigned to the
+derived node adversaries.
 The injection schedule uses global depths; an opening's payloads use depths below its cap.
 Opening verification needs only digest equality and a bounded check of injection depths.
 Extraction is computable whenever the supplied hash, compression, adversary and extractor
@@ -45,10 +46,6 @@ def answer (hash : Payload → Digest) (compress : Digest → Digest → Digest)
 /-- A node adversary outputs a target digest and all preimages it reveals, on explicit coins. -/
 abbrev NodeAdversary (Coins : Type) (Payload : Type u) (Digest : Type v) :=
   Coins → Digest × List (Op Payload Digest)
-
-/-- An extractor assignment chooses a same-coins extractor for each node adversary. -/
-abbrev ExtractorMap (Coins : Type) (Payload : Type u) (Digest : Type v) :=
-  NodeAdversary Coins Payload Digest → Coins → Op Payload Digest
 
 /-- A revealed preimage of the target differs from the extractor's prediction. -/
 @[expose]
@@ -127,6 +124,11 @@ structure Position where
   /-- Which operation of the node this position represents. -/
   stage : Stage
   deriving DecidableEq
+
+/-- An extractor assignment chooses a same-coins extractor for each operation position and its
+node adversary. -/
+abbrev ExtractorMap (Coins : Type) (Payload : Type u) (Digest : Type v) :=
+  Position → NodeAdversary Coins Payload Digest → Coins → Op Payload Digest
 
 /-- Positions below the cap: leaves hash, inner nodes compress, scheduled nodes also inject. -/
 @[expose]
@@ -255,7 +257,7 @@ def derivedAdversary [DecidableEq Digest] (hash : Payload → Digest)
     let target := match _hp : v.parent h inj with
       | none => (A c).1.getD v.index (hash p₀)
       | some (u, right) =>
-        let ab := opChildren (hash p₀) (X (derivedAdversary hash compress p₀ K h inj A X u) c)
+        let ab := opChildren (hash p₀) (X u (derivedAdversary hash compress p₀ K h inj A X u) c)
         if right then ab.2 else ab.1
     (target, revealedOps hash compress p₀ K h inj A v c)
 termination_by v.rank
@@ -266,7 +268,7 @@ decreasing_by exact Position.parent_rank_lt h inj _ _ _ _hp
 def extractedOp [DecidableEq Digest] (hash : Payload → Digest) (compress : Digest → Digest → Digest)
     (p₀ : Payload) (K h : ℕ) (inj : ℕ → Bool) (A : MerkleAdversary Coins Payload Digest)
     (X : ExtractorMap Coins Payload Digest) (v : Position) (c : Coins) : Op Payload Digest :=
-  X (derivedAdversary hash compress p₀ K h inj A X v) c
+  X v (derivedAdversary hash compress p₀ K h inj A X v) c
 
 /-- Extracted leaf payloads, with the fixed default for predictions of the wrong shape. -/
 @[expose]
@@ -629,7 +631,7 @@ and its output equals the derived target; this is the top-down induction invaria
 theorem opening_op_eq_extracted (c : Coins)
     (hgood : ∀ v ∈ positions K h inj,
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c)
     (o : Opening Payload Digest) (ho : o ∈ (A c).2)
     (hver : o.Verifies hash compress K h inj (A c).1) (v : Position)
     (hv : v ∈ positions K h inj) (q : Op Payload Digest)
@@ -664,7 +666,7 @@ theorem opening_op_eq_extracted (c : Coins)
           exact List.mem_singleton_self _
         have hpred := (ih u (v.parent_rank_lt h inj u right hp) hu _ hqu).1
         change o.opAt hash compress p₀ K h u =
-          X (derivedAdversary hash compress p₀ K h inj A X u) c at hpred
+          X u (derivedAdversary hash compress p₀ K h inj A X u) c at hpred
         rw [← hpred]
         exact o.parent_edge hash compress p₀ K h inj (A c).1 hver v u right hvalid hi hp
     refine ⟨?_, htarget⟩
@@ -679,7 +681,7 @@ theorem opening_op_eq_extracted (c : Coins)
 theorem opening_leaf_eq (c : Coins)
     (hgood : ∀ v ∈ positions K h inj,
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c)
     (o : Opening Payload Digest) (ho : o ∈ (A c).2)
     (hv : o.Verifies hash compress K h inj (A c).1) :
     o.payload = extractedLeaves hash compress p₀ K h inj A X c o.index := by
@@ -695,7 +697,7 @@ theorem opening_leaf_eq (c : Coins)
 theorem opening_pays_eq (c : Coins)
     (hgood : ∀ v ∈ positions K h inj,
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c)
     (o : Opening Payload Digest) (ho : o ∈ (A c).2)
     (hv : o.Verifies hash compress K h inj (A c).1) (d : ℕ) (hd : d < K - h) :
     o.pays d = pays K (extractedInjections hash compress p₀ K h inj A X c)
@@ -742,12 +744,12 @@ theorem disagreement_implies_nodeBad (c : Coins) (o : Opening Payload Digest)
       (extractedInjections hash compress p₀ K h inj A X c)) :
     ∃ v ∈ positions K h inj,
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c := by
   classical
   by_contra hn
   have hgood : ∀ v ∈ positions K h inj,
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c := by
     intro v hv hbad
     exact hn ⟨v, hv, hbad⟩
   rcases hd with hleaf | ⟨d, hd, hpays⟩
@@ -761,7 +763,7 @@ theorem knowledge_bound_union [SampleableType Coins] :
         (extractedInjections hash compress p₀ K h inj A X c)] ≤
     Pr{let c ← $ᵗ Coins}[∃ v ∈ positions K h inj,
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c] := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c] := by
   apply prEvent_mono
   intro c ⟨o, ho, hv, hd⟩
   exact disagreement_implies_nodeBad hash compress p₀ K h inj A X c o ho hv hd
@@ -773,7 +775,7 @@ theorem knowledge_bound [SampleableType Coins] :
         (extractedInjections hash compress p₀ K h inj A X c)] ≤
     ∑ v ∈ positions K h inj,
       nodeFail (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) := by
   exact (knowledge_bound_union hash compress p₀ K h inj A X).trans
     (prEvent_exists_finset_le (positions K h inj) ($ᵗ Coins) _)
 

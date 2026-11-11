@@ -165,7 +165,7 @@ theorem opening_op_eq_extracted_local (hash : Payload → Digest)
     (closed : ∀ v ∈ S, ∀ u right, v.parent h inj = some (u, right) → u ∈ S)
     (hgood : ∀ v ∈ S, v ∈ positions K h inj →
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c)
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c)
     (o : Opening Payload Digest) (ho : o ∈ (A c).2)
     (hver : o.Verifies hash compress K h inj (A c).1) (v : Position) (member : v ∈ S)
     (hv : v ∈ positions K h inj) (q : Op Payload Digest)
@@ -201,7 +201,7 @@ theorem opening_op_eq_extracted_local (hash : Payload → Digest)
         have hpred := (ih u (v.parent_rank_lt h inj u right hp)
           (closed v member u right hp) hu _ hqu).1
         change o.opAt hash compress p₀ K h u =
-          X (derivedAdversary hash compress p₀ K h inj A X u) c at hpred
+          X u (derivedAdversary hash compress p₀ K h inj A X u) c at hpred
         rw [← hpred]
         exact o.parent_edge hash compress p₀ K h inj (A c).1 hver v u right hvalid hi hp
     refine ⟨?_, htarget⟩
@@ -221,7 +221,7 @@ theorem positionConsistent_of_no_nodeBad (hash : Payload → Digest)
     (hv : v.Valid K h inj) (hi : o.index >>> (K - v.depth) = v.index)
     (good : ∀ u ∈ extractionPathPositions h inj v, u ∈ positions K h inj →
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X u)
-        (X (derivedAdversary hash compress p₀ K h inj A X u)) c) :
+        (X u (derivedAdversary hash compress p₀ K h inj A X u)) c) :
     positionConsistent hash compress p₀ K h inj A X c v = true := by
   simp only [positionConsistent, checkPositionPath, Bool.and_eq_true_iff,
     decide_eq_true_eq, List.all_eq_true]
@@ -260,13 +260,13 @@ theorem opening_injection_none_implies_nodeBad (hash : Payload → Digest)
     ∃ v ∈ extractionPathPositions h inj ⟨d, o.index >>> (K - d), .payload⟩,
       v ∈ positions K h inj ∧
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c := by
   classical
   by_contra absent
   have good : ∀ u ∈ extractionPathPositions h inj
       ⟨d, o.index >>> (K - d), .payload⟩, u ∈ positions K h inj →
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X u)
-        (X (derivedAdversary hash compress p₀ K h inj A X u)) c := by
+        (X u (derivedAdversary hash compress p₀ K h inj A X u)) c := by
     simpa only [not_exists, not_and] using absent
   have consistent := positionConsistent_of_no_nodeBad hash compress p₀ K h inj A X c o ho hv
     ⟨d, o.index >>> (K - d), .payload⟩
@@ -283,13 +283,13 @@ theorem opening_none_implies_nodeBad (hash : Payload → Digest)
     (unknown : extractedMask hash compress p₀ K h inj A X c ⟨o.index, hv.2.2.1⟩ = none) :
     ∃ v ∈ maskPositions K h inj o.index, v ∈ positions K h inj ∧
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c := by
   classical
   by_contra absent
   have good : ∀ u ∈ extractionPathPositions h inj ⟨K, o.index, .leaf⟩,
       u ∈ positions K h inj →
       ¬ NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X u)
-        (X (derivedAdversary hash compress p₀ K h inj A X u)) c := by
+        (X u (derivedAdversary hash compress p₀ K h inj A X u)) c := by
     simpa only [maskPositions, not_exists, not_and] using absent
   have consistent := positionConsistent_of_no_nodeBad hash compress p₀ K h inj A X c o ho hv
     ⟨K, o.index, .leaf⟩ ⟨hv.1, le_rfl, hv.2.2.1, rfl⟩
@@ -306,7 +306,7 @@ theorem opening_mask_disagree_implies_nodeBad (hash : Payload → Digest)
       some o.payload) :
     ∃ v ∈ positions K h inj,
       NodeBad (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) c := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) c := by
   cases hm : extractedMask hash compress p₀ K h inj A X c ⟨o.index, hv.2.2.1⟩ with
   | none =>
       obtain ⟨v, _, hv', bad⟩ := opening_none_implies_nodeBad hash compress p₀ K h inj A X
@@ -329,7 +329,7 @@ theorem masked_knowledge_bound [SampleableType Coins] (hash : Payload → Digest
       extractedMask hash compress p₀ K h inj A X c ⟨o.index, hv.2.2.1⟩ ≠ some o.payload] ≤
     ∑ v ∈ positions K h inj,
       nodeFail (answer hash compress) (derivedAdversary hash compress p₀ K h inj A X v)
-        (X (derivedAdversary hash compress p₀ K h inj A X v)) := by
+        (X v (derivedAdversary hash compress p₀ K h inj A X v)) := by
   refine (prEvent_mono ($ᵗ Coins) _ _ ?_).trans
     (prEvent_exists_finset_le (positions K h inj) ($ᵗ Coins) _)
   rintro c ⟨o, ho, hv, hd⟩
